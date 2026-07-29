@@ -1,0 +1,1516 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#A8DADC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1e293b" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Bernardo">
+<link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Di%C3%A1rio%20do%20Bernardo%22%2C%22short_name%22%3A%22Bernardo%22%2C%22start_url%22%3A%22.%2F%22%2C%22scope%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22orientation%22%3A%22portrait%22%2C%22background_color%22%3A%22%23ffffff%22%2C%22theme_color%22%3A%22%23A8DADC%22%2C%22lang%22%3A%22pt-PT%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%3Bcharset%3Dutf-8%2C%253Csvg%2520xmlns%253D%2527http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2527%2520viewBox%253D%25270%25200%2520100%2520100%2527%253E%253Crect%2520width%253D%2527100%2527%2520height%253D%2527100%2527%2520rx%253D%252720%2527%2520fill%253D%2527%2523A8DADC%2527%252F%253E%253Ctext%2520x%253D%252750%2527%2520y%253D%252766%2527%2520font-size%253D%252750%2527%2520text-anchor%253D%2527middle%2527%253E%25F0%259F%2591%25B6%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22sizes%22%3A%22any%22%2C%22purpose%22%3A%22any%20maskable%22%7D%5D%7D">
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23A8DADC'/><text x='50' y='66' font-size='50' text-anchor='middle'>👶</text></svg>">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23A8DADC'/><text x='50' y='66' font-size='50' text-anchor='middle'>👶</text></svg>">
+<title>Diário do Bernardo</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        mint:  { 50:'#F0FAFB', 100:'#DDF3F4', 200:'#A8DADC', 300:'#7BC7CA', 400:'#4FB0B4', 500:'#2E9599' },
+        rose:  { 100:'#FBE4E7', 200:'#F1B0B7', 300:'#E38A94', 400:'#D26571' },
+        sand:  { 50:'#FAF7F2', 100:'#F1ECE1', 200:'#E4DBC8' },
+        night: { 0:'#1a2233', 1:'#232d42', 2:'#2c3752' }
+      },
+      fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','"SF Pro Text"','Inter','system-ui','sans-serif'] }
+    }
+  }
+}
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  html,body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: contain; }
+  body { font-size: 17px; padding-top: env(safe-area-inset-top); }
+  .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 0.75rem); }
+  [x-cloak] { display: none !important; }
+  .btn-tap { transition: transform .08s ease, background-color .15s ease, box-shadow .15s ease; }
+  .btn-tap:active { transform: scale(0.97); }
+  .num-input { font-variant-numeric: tabular-nums; }
+  input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  input[type="number"] { -moz-appearance: textfield; }
+  .sheet-enter { animation: sheetUp .22s ease-out; }
+  @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .backdrop-enter { animation: fadeIn .18s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .segbtn { border: 1px solid transparent; }
+  .segbtn[data-active="true"] { background: #A8DADC; color: #0f172a; border-color: #7BC7CA; }
+  .dark .segbtn[data-active="true"] { background: #2E9599; color: #f8fafc; border-color: #4FB0B4; }
+  .chip { transition: transform .08s ease; }
+  .chip:active { transform: scale(0.94); }
+  .chip[data-on="true"] { background:#A8DADC; color:#0f172a; }
+  .dark .chip[data-on="true"] { background:#2E9599; color:#f8fafc; }
+  .fab-menu-item { animation: fabPop .18s ease-out both; }
+  @keyframes fabPop { from { opacity: 0; transform: translateY(10px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .star-btn.on { color:#f59e0b; }
+  .disclaimer { line-height: 1.35; }
+</style>
+</head>
+<!--
+  ============================================================
+  DIÁRIO DO BERNARDO — Estrutura de dados (localStorage)
+  ============================================================
+  bernardo_profile  : { name, dob (ISO date), gestational_weeks, gestational_days,
+                        birth_weight_g, mother_has_hashimoto }
+  bernardo_settings : { target_feedings_per_day, min_wet_diapers, min_weight_gain_g_per_day,
+                        supplement_formula_ml_per_kg, supplement_meals_divisor }
+  bernardo_records  : Array<{
+                        id: uuid,
+                        type: 'feeding'|'diaper'|'weight'|'pumping'|'promil'|'colic'|'note',
+                        timestamp: ISO string,
+                        data: { …campos específicos por tipo }
+                      }>
+  bernardo_theme    : 'light' | 'dark'
+  bernardo_timer    : { startedAt: epoch ms } | null (timer de mamada persistente)
+  ============================================================
+-->
+<body class="bg-mint-50 text-slate-800 dark:bg-night-0 dark:text-slate-100 min-h-screen" x-data="app()" x-init="init()" x-cloak :class="theme==='dark'?'dark':''">
+
+<!-- ============ HEADER ============ -->
+<header class="sticky top-0 z-30 bg-mint-50/90 dark:bg-night-0/90 backdrop-blur border-b border-mint-200/60 dark:border-night-2/60">
+  <div class="max-w-md mx-auto px-4 py-3 flex items-center gap-3">
+    <div class="text-3xl leading-none">👶</div>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="font-semibold truncate" x-text="profile.name || 'Bebé'"></div>
+        <div class="text-xs text-slate-500 dark:text-slate-400 num-input" x-text="todayDateShort"></div>
+      </div>
+      <div class="text-xs num-input mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+        <span class="text-slate-500 dark:text-slate-400" x-text="'cron: '+ageText"></span>
+        <template x-if="profile.dob">
+          <span class="text-mint-500 dark:text-mint-200 font-medium" x-text="'corrigida: '+correctedAgeText"></span>
+        </template>
+      </div>
+    </div>
+    <button class="btn-tap p-2 rounded-full hover:bg-mint-100 dark:hover:bg-night-1" @click="toggleTheme()" aria-label="Tema">
+      <svg x-show="theme!=='dark'" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg x-show="theme==='dark'" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+    </button>
+    <button class="btn-tap p-2 rounded-full hover:bg-mint-100 dark:hover:bg-night-1" @click="openSheet('settings')" aria-label="Definições">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.757.426 1.757 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.757-2.924 1.757-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.757-.426-1.757-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+  </div>
+
+  <div class="max-w-md mx-auto px-2 pb-2">
+    <div class="grid grid-cols-4 gap-1 bg-mint-100 dark:bg-night-1 rounded-xl p-1">
+      <template x-for="t in tabs" :key="t.id">
+        <button class="btn-tap py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+                :class="tab===t.id ? 'bg-white dark:bg-night-2 shadow-sm text-mint-500 dark:text-mint-200' : 'text-slate-600 dark:text-slate-300'"
+                @click="tab=t.id">
+          <span x-text="t.icon"></span><span x-text="t.label"></span>
+        </button>
+      </template>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-md mx-auto px-4 pt-3 pb-40">
+
+  <!-- ================ TAB: HOJE ================ -->
+  <section x-show="tab==='today'">
+
+    <template x-if="!profile.dob">
+      <div class="mb-4 p-4 rounded-2xl bg-rose-100 dark:bg-rose-400/20 border border-rose-200 dark:border-rose-400/40">
+        <div class="font-semibold mb-1">Configura o perfil</div>
+        <div class="text-sm mb-3">Precisamos da data de nascimento e peso para calcular metas e idade corrigida.</div>
+        <button class="btn-tap px-4 py-2 rounded-xl bg-rose-200 dark:bg-rose-400/40 font-medium" @click="openSheet('settings')">Abrir definições</button>
+      </div>
+    </template>
+
+    <!-- Alertas ativos -->
+    <template x-if="alerts.length">
+      <div class="mb-4 space-y-2">
+        <template x-for="a in alerts" :key="a.id">
+          <div class="p-3 rounded-2xl border flex items-start gap-3"
+               :class="a.tone==='warn'  ? 'bg-amber-100 dark:bg-amber-400/15 border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-200'
+                     : a.tone==='alert' ? 'bg-rose-100  dark:bg-rose-400/20  border-rose-300  dark:border-rose-500/40  text-rose-400   dark:text-rose-200'
+                     :                    'bg-mint-100  dark:bg-mint-500/20  border-mint-300  dark:border-mint-500/40  text-mint-500   dark:text-mint-200'">
+            <div class="text-xl leading-none pt-0.5" x-text="a.icon"></div>
+            <div class="flex-1 text-sm">
+              <div class="font-semibold" x-text="a.title"></div>
+              <div class="opacity-90" x-text="a.detail"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="p-3 rounded-2xl border" :class="kpiClasses(kpiFeedings.status)">
+        <div class="text-xs uppercase tracking-wide opacity-70">Mamadas hoje</div>
+        <div class="mt-1 flex items-baseline gap-1">
+          <span class="text-4xl font-semibold num-input" x-text="today.feedings"></span>
+          <span class="text-sm opacity-70">/ <span x-text="settings.target_feedings_per_day"></span></span>
+        </div>
+        <div class="mt-2 h-1.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+          <div class="h-full" :style="`width:${Math.min(100, today.feedings/settings.target_feedings_per_day*100)}%; background:${kpiBar(kpiFeedings.status)}`"></div>
+        </div>
+      </div>
+      <div class="p-3 rounded-2xl border" :class="kpiClasses(kpiDiapers.status)">
+        <div class="text-xs uppercase tracking-wide opacity-70">Fraldas molhadas</div>
+        <div class="mt-1 flex items-baseline gap-1">
+          <span class="text-4xl font-semibold num-input" x-text="today.wetDiapers"></span>
+          <span class="text-sm opacity-70">/ <span x-text="settings.min_wet_diapers"></span></span>
+        </div>
+        <div class="mt-2 h-1.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+          <div class="h-full" :style="`width:${Math.min(100, today.wetDiapers/settings.min_wet_diapers*100)}%; background:${kpiBar(kpiDiapers.status)}`"></div>
+        </div>
+      </div>
+      <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2">
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Suplemento hoje</div>
+        <div class="mt-1"><span class="text-4xl font-semibold num-input" x-text="today.supplementMl"></span> <span class="text-sm text-slate-500">ml</span></div>
+        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1" x-text="`meta ≈ ${targetDailyMl} ml`"></div>
+      </div>
+      <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2">
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Última mamada</div>
+        <div class="mt-1 text-3xl font-semibold num-input" x-text="lastFeedingBig"></div>
+        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1" x-text="nextFeedingHint"></div>
+      </div>
+    </div>
+
+    <!-- 2 botões gigantes -->
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <button class="btn-tap py-6 rounded-3xl bg-mint-300 hover:bg-mint-400 dark:bg-mint-500 text-slate-900 dark:text-slate-950 shadow-md" @click="openSheet('feeding')">
+        <div class="text-5xl leading-none">🤱</div>
+        <div class="mt-2 font-semibold text-lg">Nova mamada</div>
+      </button>
+      <button class="btn-tap py-6 rounded-3xl bg-rose-200 hover:bg-rose-300 dark:bg-rose-400/60 text-slate-900 dark:text-rose-50 shadow-md" @click="openSheet('diaper')">
+        <div class="text-5xl leading-none">💧</div>
+        <div class="mt-2 font-semibold text-lg">Nova fralda</div>
+      </button>
+    </div>
+
+    <!-- Suplemento sugerido -->
+    <div class="p-4 rounded-2xl bg-mint-100 dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-6" x-show="lastWeight || profile.birth_weight_g">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Suplemento sugerido</div>
+          <div class="mt-1 text-2xl font-semibold num-input">
+            <span x-text="supplementPerMeal"></span> <span class="text-base text-slate-500">ml / refeição</span>
+          </div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 mt-1" x-text="`${settings.supplement_formula_ml_per_kg} ml/kg/dia ÷ ${settings.supplement_meals_divisor} refeições · peso ${(lastWeight?.data?.grams) || profile.birth_weight_g} g`"></div>
+        </div>
+        <div class="text-3xl">🍼</div>
+      </div>
+      <template x-if="profile.mother_has_hashimoto">
+        <div class="mt-3 text-xs px-3 py-2 rounded-lg bg-rose-100 dark:bg-rose-400/20 text-rose-400 dark:text-rose-200">
+          ⚠️ Hashimoto na mãe: escolher fórmula <b>sem iodo adicional</b> (validar com pediatra).
+        </div>
+      </template>
+    </div>
+
+    <!-- Timeline -->
+    <div class="flex items-center justify-between mb-2">
+      <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 px-1">Últimos registos</div>
+      <button class="text-xs text-mint-500 dark:text-mint-200" @click="tab='history'">Ver tudo →</button>
+    </div>
+    <div class="space-y-2">
+      <template x-for="r in recentRecords" :key="r.id">
+        <div class="p-3 rounded-xl bg-white dark:bg-night-1 border border-mint-200/50 dark:border-night-2 flex items-start gap-3">
+          <div class="text-2xl leading-none pt-0.5" x-text="icon(r.type)"></div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium" x-text="describe(r)"></div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 num-input" x-text="timeAgo(r.timestamp) + ' · ' + fmtTime(r.timestamp)"></div>
+          </div>
+          <button class="btn-tap text-slate-400 hover:text-rose-400 p-1" @click="deleteRecord(r.id)" aria-label="Apagar">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M7 7l1 12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-12"/></svg>
+          </button>
+        </div>
+      </template>
+      <template x-if="recentRecords.length===0">
+        <div class="text-center text-slate-500 dark:text-slate-400 text-sm py-6">Sem registos ainda. Toca num botão acima para começar.</div>
+      </template>
+    </div>
+  </section>
+
+  <!-- ================ TAB: GRÁFICOS ================ -->
+  <section x-show="tab==='charts'">
+    <div class="mb-3 flex gap-2 items-center">
+      <div class="flex gap-2 flex-1">
+        <template x-for="r in ['7','14','30']" :key="r">
+          <button class="segbtn btn-tap flex-1 py-2 rounded-xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 text-sm"
+                  :data-active="chartRange===r" @click="chartRange=r; $nextTick(()=>renderCharts())"
+                  x-text="`${r} dias`"></button>
+        </template>
+      </div>
+      <button class="btn-tap px-3 py-2 rounded-xl bg-mint-200 dark:bg-mint-500/40 text-sm font-medium" @click="exportWeekCSV()">
+        ⬇️ CSV semana
+      </button>
+    </div>
+
+    <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-sm font-medium">Peso (g)</div>
+        <div class="text-xs text-slate-500 dark:text-slate-400" x-text="'meta +'+settings.min_weight_gain_g_per_day+' g/dia'"></div>
+      </div>
+      <div class="h-56"><canvas id="chartWeight"></canvas></div>
+      <div class="text-xs text-slate-500 dark:text-slate-400 mt-2" x-text="`ganho médio: ${avgGainText}`"></div>
+    </div>
+
+    <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+      <div class="text-sm font-medium mb-2">Mamadas por dia (14 d)</div>
+      <div class="h-48"><canvas id="chartFeedings"></canvas></div>
+    </div>
+
+    <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+      <div class="text-sm font-medium mb-2">Fraldas por dia</div>
+      <div class="h-48"><canvas id="chartDiapers"></canvas></div>
+    </div>
+
+    <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+      <div class="text-sm font-medium mb-2">Suplemento (ml) por dia · <span class="text-xs text-slate-500 dark:text-slate-400 font-normal">objetivo: tendência descendente</span></div>
+      <div class="h-48"><canvas id="chartSupplement"></canvas></div>
+    </div>
+
+    <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+      <div class="text-sm font-medium mb-2">Distribuição de mamadas por hora (últimos 7 dias)</div>
+      <div class="overflow-x-auto -mx-1 px-1">
+        <div class="min-w-max space-y-0.5">
+          <div class="grid grid-cols-[2.5rem_repeat(24,minmax(14px,1fr))] gap-0.5 text-[9px] text-center num-input text-slate-400">
+            <div></div>
+            <template x-for="h in 24" :key="'h'+h"><div x-text="(h-1)%3===0 ? (h-1) : ''"></div></template>
+          </div>
+          <template x-for="row in heatmap" :key="'hm'+row.day">
+            <div class="grid grid-cols-[2.5rem_repeat(24,minmax(14px,1fr))] gap-0.5 items-center">
+              <div class="text-[10px] text-slate-500 dark:text-slate-400 pr-1 text-right num-input" x-text="row.label"></div>
+              <template x-for="(c,i) in row.cells" :key="'cell'+row.day+'_'+i">
+                <div class="aspect-square rounded-sm" :style="`background:${heatColor(c)}`" :title="`${row.label} ${i}h: ${c} mamadas`"></div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================ TAB: HISTÓRICO ================ -->
+  <section x-show="tab==='history'">
+    <div class="mb-3 flex gap-2 overflow-x-auto pb-1">
+      <button class="btn-tap px-3 py-1.5 rounded-full text-sm segbtn"
+              :data-active="histFilter==='all'"
+              :class="histFilter==='all' ? '' : 'bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2'"
+              @click="histFilter='all'">Todos</button>
+      <template x-for="t in ['feeding','diaper','weight','pumping','promil','colic','note']" :key="t">
+        <button class="btn-tap px-3 py-1.5 rounded-full text-sm whitespace-nowrap segbtn"
+                :data-active="histFilter===t"
+                :class="histFilter===t ? '' : 'bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2'"
+                @click="histFilter=t" x-text="icon(t)+' '+labelType(t)"></button>
+      </template>
+    </div>
+
+    <template x-for="group in groupedHistory" :key="group.day">
+      <div class="mb-5">
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 px-1 mb-2 num-input" x-text="group.label"></div>
+        <div class="space-y-2">
+          <template x-for="r in group.items" :key="r.id">
+            <div class="p-3 rounded-xl bg-white dark:bg-night-1 border border-mint-200/50 dark:border-night-2 flex items-start gap-3"
+                 @click="editRecord(r)">
+              <div class="text-2xl leading-none pt-0.5" x-text="icon(r.type)"></div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium" x-text="describe(r)"></div>
+                <div class="text-xs text-slate-500 dark:text-slate-400 num-input" x-text="fmtTime(r.timestamp)"></div>
+              </div>
+              <button class="btn-tap text-slate-400 hover:text-rose-400 p-1" @click.stop="deleteRecord(r.id)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M7 7l1 12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-12"/></svg>
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+    <template x-if="groupedHistory.length===0">
+      <div class="text-center text-slate-500 dark:text-slate-400 text-sm py-10">Sem registos.</div>
+    </template>
+  </section>
+
+  <!-- ================ TAB: GUIA ================ -->
+  <section x-show="tab==='guide'">
+    <div class="grid grid-cols-2 gap-1 bg-mint-100 dark:bg-night-1 rounded-xl p-1 mb-4">
+      <button class="btn-tap py-2 rounded-lg text-sm font-medium"
+              :class="guideTab==='age' ? 'bg-white dark:bg-night-2 shadow-sm text-mint-500 dark:text-mint-200' : 'text-slate-600 dark:text-slate-300'"
+              @click="guideTab='age'">🗓️ Idade Corrigida</button>
+      <button class="btn-tap py-2 rounded-lg text-sm font-medium"
+              :class="guideTab==='consulta' ? 'bg-white dark:bg-night-2 shadow-sm text-mint-500 dark:text-mint-200' : 'text-slate-600 dark:text-slate-300'"
+              @click="guideTab='consulta'">🩺 Consulta</button>
+    </div>
+
+    <div x-show="guideTab==='age'">
+      <div class="p-4 rounded-2xl bg-mint-100 dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Idade corrigida agora</div>
+        <div class="mt-1 text-3xl font-semibold num-input" x-text="correctedAgeText"></div>
+        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 num-input" x-text="`cronológica ${ageText} · nasceu ${profile.gestational_weeks}s${profile.gestational_days}d`"></div>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+        <div class="font-semibold mb-2">O que esperar</div>
+        <div class="text-sm space-y-2" x-html="expectationsHtml"></div>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-amber-100 dark:bg-amber-400/15 border border-amber-300/50 dark:border-amber-500/40 mb-3">
+        <div class="font-semibold text-amber-800 dark:text-amber-200 mb-1">Fase de cólicas</div>
+        <div class="text-sm text-amber-900 dark:text-amber-100" x-html="colicPhaseHtml"></div>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+        <div class="font-semibold mb-2">Porquê usar idade corrigida?</div>
+        <p class="text-sm text-slate-700 dark:text-slate-300">
+          Um bebé prematuro tardio (34–36+6 s) precisa de "recuperar" as semanas que faltou completar de gestação.
+          Até aos ~2 anos, comparamos o desenvolvimento e as expectativas de sono, alimentação e marcos com base na idade corrigida — subtraindo, no caso do Bernardo, <b>4 semanas e 4 dias</b> à idade cronológica.
+        </p>
+      </div>
+    </div>
+
+    <div x-show="guideTab==='consulta'">
+      <template x-for="c in consultaCards" :key="c.id">
+        <div class="mb-3 rounded-2xl border border-mint-200/60 dark:border-night-2 bg-white dark:bg-night-1 overflow-hidden">
+          <button class="w-full flex items-center justify-between p-4 text-left btn-tap" @click="c.open = !c.open">
+            <div class="flex items-center gap-3">
+              <div class="text-2xl" x-text="c.icon"></div>
+              <div class="font-semibold" x-text="c.title"></div>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400 transition-transform" :class="c.open?'rotate-180':''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div x-show="c.open" class="px-4 pb-4 text-sm text-slate-700 dark:text-slate-300 space-y-2" x-html="c.body"></div>
+        </div>
+      </template>
+
+      <div class="p-4 rounded-2xl bg-mint-100 dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+        <div class="font-semibold mb-2">🧮 Calculadora de suplemento</div>
+        <div class="grid grid-cols-3 gap-2 items-end">
+          <div>
+            <label class="text-xs text-slate-500">Peso (g)</label>
+            <input type="number" inputmode="numeric" class="w-full p-2 rounded-lg bg-white dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="calc.weight">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500">ml/kg/dia</label>
+            <input type="number" inputmode="numeric" class="w-full p-2 rounded-lg bg-white dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="calc.mlPerKg">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500">Refeições</label>
+            <input type="number" inputmode="numeric" class="w-full p-2 rounded-lg bg-white dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="calc.meals">
+          </div>
+        </div>
+        <div class="mt-3 text-center">
+          <div class="text-3xl font-semibold num-input" x-text="calcResult.perMeal + ' ml/refeição'"></div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 num-input" x-text="`(${calcResult.daily} ml/dia total)`"></div>
+        </div>
+        <div class="mt-3 text-xs px-3 py-2 rounded-lg bg-rose-100 dark:bg-rose-400/20 text-rose-400 dark:text-rose-200">
+          ⚠️ Suplemento SEM iodo adicional — Hashimoto materno.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Disclaimer -->
+  <div class="mt-8 p-3 rounded-xl bg-white/60 dark:bg-night-1/70 border border-mint-200/40 dark:border-night-2 text-[11px] text-slate-500 dark:text-slate-400 disclaimer">
+    Este app é uma ferramenta de registo pessoal. <b>Não substitui</b> acompanhamento médico ou de enfermagem.
+    Em caso de dúvida ou sinal de alerta, contactar a <b>Enfª Daniela Felizardo</b>, o pediatra do Bernardo ou o
+    <b>SNS 24 (808 24 24 24)</b>.
+  </div>
+</main>
+
+<!-- FAB expansível -->
+<div class="fixed bottom-0 right-0 z-20 pointer-events-none">
+  <div class="max-w-md mx-auto px-4 safe-bottom flex flex-col items-end gap-2">
+    <template x-if="fabOpen">
+      <div class="flex flex-col items-end gap-2 pointer-events-auto">
+        <template x-for="(it,idx) in fabItems" :key="it.k">
+          <button class="fab-menu-item btn-tap flex items-center gap-2 bg-white dark:bg-night-2 border border-mint-200/60 dark:border-night-2 shadow-lg rounded-full pl-4 pr-3 py-2"
+                  :style="`animation-delay:${idx*30}ms`"
+                  @click="fabOpen=false; openSheet(it.k)">
+            <span class="text-sm font-medium" x-text="it.label"></span>
+            <span class="text-xl" x-text="it.icon"></span>
+          </button>
+        </template>
+      </div>
+    </template>
+    <button class="pointer-events-auto btn-tap bg-mint-400 hover:bg-mint-500 dark:bg-mint-500 text-white font-semibold rounded-full shadow-lg w-14 h-14 flex items-center justify-center text-3xl"
+            :class="fabOpen?'rotate-45':''" style="transition:transform .2s"
+            @click="fabOpen=!fabOpen" aria-label="Novo registo">＋</button>
+  </div>
+</div>
+
+<div x-show="fabOpen" @click="fabOpen=false" class="fixed inset-0 z-10 bg-black/20 dark:bg-black/50 backdrop-enter"></div>
+
+<!-- Sheets -->
+<template x-if="sheet">
+  <div class="fixed inset-0 z-40 flex items-end justify-center backdrop-enter" @click.self="closeSheet()">
+    <div class="absolute inset-0 bg-slate-900/40 dark:bg-black/60"></div>
+    <div class="relative w-full max-w-md bg-white dark:bg-night-1 rounded-t-3xl sheet-enter max-h-[92vh] overflow-y-auto" @click.stop>
+      <div class="sticky top-0 bg-white dark:bg-night-1 pt-2 pb-3 px-5 border-b border-mint-100 dark:border-night-2 rounded-t-3xl">
+        <div class="w-10 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto mb-3"></div>
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-semibold" x-text="sheetTitle"></div>
+          <button class="btn-tap text-slate-500 p-1" @click="closeSheet()">✕</button>
+        </div>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <template x-if="['feeding','diaper','weight','pumping','promil','colic','note'].includes(sheet)">
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Quando</label>
+            <div class="flex gap-2">
+              <button class="btn-tap flex-1 py-2 rounded-xl segbtn" :data-active="form.whenChoice==='now'" @click="setWhen('now')">Agora</button>
+              <button class="btn-tap flex-1 py-2 rounded-xl segbtn" :data-active="form.whenChoice==='custom'" @click="setWhen('custom')">Personalizar</button>
+            </div>
+            <template x-if="form.whenChoice==='custom'">
+              <input type="datetime-local" class="mt-2 w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.timestamp">
+            </template>
+          </div>
+        </template>
+
+        <!-- FEEDING -->
+        <template x-if="sheet==='feeding'">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Método</label>
+              <div class="grid grid-cols-3 gap-2">
+                <template x-for="m in [{v:'mama',l:'Mama',e:'🤱'},{v:'tetina',l:'Tetina',e:'🍼'},{v:'misto',l:'Misto',e:'🤱🍼'}]" :key="m.v">
+                  <button class="btn-tap py-3 rounded-xl segbtn" :data-active="form.method===m.v" @click="form.method=m.v">
+                    <div class="text-xl" x-text="m.e"></div>
+                    <div class="text-xs mt-0.5" x-text="m.l"></div>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <template x-if="form.method==='mama' || form.method==='misto'">
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Mama</label>
+                  <div class="grid grid-cols-3 gap-2">
+                    <template x-for="s in [{v:'E',l:'Esquerda'},{v:'D',l:'Direita'},{v:'ambos',l:'Ambas'}]" :key="s.v">
+                      <button class="btn-tap py-3 rounded-xl segbtn text-base font-medium" :data-active="form.side===s.v" @click="form.side=s.v" x-text="s.l"></button>
+                    </template>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Duração</label>
+                  <div class="p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2">
+                    <div class="flex items-center justify-between gap-3">
+                      <div class="text-3xl font-mono num-input" x-text="timerDisplay"></div>
+                      <div class="flex gap-2">
+                        <button x-show="!timer.running" class="btn-tap px-4 py-2 rounded-lg bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-medium text-sm" @click="startTimer()">▶ Iniciar</button>
+                        <button x-show="timer.running" class="btn-tap px-4 py-2 rounded-lg bg-rose-300 dark:bg-rose-400/70 text-slate-900 dark:text-white font-medium text-sm" @click="stopTimer()">⏸ Parar</button>
+                        <button x-show="timer.elapsed>0" class="btn-tap px-3 py-2 rounded-lg bg-white dark:bg-night-1 border border-mint-200 dark:border-night-2 text-sm" @click="resetTimer()">↺</button>
+                      </div>
+                    </div>
+                    <div class="mt-3 flex items-center gap-2">
+                      <span class="text-xs text-slate-500">ou manual (min):</span>
+                      <button class="btn-tap w-9 h-9 rounded-lg bg-white dark:bg-night-1 text-lg" @click="form.duration_min=Math.max(0,(form.duration_min||0)-5)">−</button>
+                      <input type="number" inputmode="numeric" class="flex-1 p-2 rounded-lg bg-white dark:bg-night-1 border border-mint-200 dark:border-night-2 text-center num-input" x-model.number="form.duration_min">
+                      <button class="btn-tap w-9 h-9 rounded-lg bg-white dark:bg-night-1 text-lg" @click="form.duration_min=(form.duration_min||0)+5">+</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="form.method==='tetina' || form.method==='misto'">
+              <div>
+                <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Suplemento (ml)</label>
+                <div class="flex items-center gap-2">
+                  <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml=Math.max(0,(form.ml||0)-5)">−</button>
+                  <input type="number" inputmode="numeric" class="flex-1 p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-lg" x-model.number="form.ml">
+                  <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml=(form.ml||0)+5">+</button>
+                </div>
+                <button class="btn-tap mt-2 w-full py-2 rounded-xl bg-mint-100 dark:bg-night-2 text-sm" @click="form.ml=supplementPerMeal">
+                  Usar sugestão: <b x-text="supplementPerMeal"></b> ml
+                </button>
+                <div>
+                  <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-3 mb-1">Fonte do leite</label>
+                  <div class="grid grid-cols-2 gap-2">
+                    <template x-for="s in [{v:'materno',l:'Materno'},{v:'formula',l:'Fórmula'}]" :key="s.v">
+                      <button class="btn-tap py-2 rounded-xl segbtn text-sm" :data-active="form.source===s.v" @click="form.source=s.v" x-text="s.l"></button>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Notas rápidas</label>
+              <div class="flex flex-wrap gap-2">
+                <template x-for="c in feedingChips" :key="c">
+                  <button class="chip px-3 py-1.5 rounded-full text-sm bg-mint-100 dark:bg-night-2 border border-mint-200/70 dark:border-night-2"
+                          :data-on="form.notes_chips?.includes(c)"
+                          @click="toggleChip('notes_chips', c)" x-text="c"></button>
+                </template>
+              </div>
+              <textarea class="mt-2 w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" rows="2" x-model="form.notes" placeholder="notas livres (opcional)"></textarea>
+            </div>
+          </div>
+        </template>
+
+        <!-- DIAPER -->
+        <template x-if="sheet==='diaper'">
+          <div class="space-y-4">
+            <div class="grid grid-cols-3 gap-2">
+              <button class="btn-tap py-5 rounded-xl segbtn" :data-active="form.diaperKind==='wet'" @click="form.diaperKind='wet'">
+                <div class="text-3xl">💧</div><div class="text-sm mt-1 font-medium">Molhada</div>
+              </button>
+              <button class="btn-tap py-5 rounded-xl segbtn" :data-active="form.diaperKind==='poop'" @click="form.diaperKind='poop'">
+                <div class="text-3xl">💩</div><div class="text-sm mt-1 font-medium">Cocó</div>
+              </button>
+              <button class="btn-tap py-5 rounded-xl segbtn" :data-active="form.diaperKind==='both'" @click="form.diaperKind='both'">
+                <div class="text-3xl">💧💩</div><div class="text-sm mt-1 font-medium">Ambos</div>
+              </button>
+            </div>
+            <template x-if="form.diaperKind==='wet' || form.diaperKind==='both'">
+              <div>
+                <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Cor da urina</label>
+                <div class="grid grid-cols-3 gap-2">
+                  <template x-for="c in ['clara','amarela escura','com cristais']" :key="c">
+                    <button class="btn-tap py-2 rounded-xl segbtn text-sm" :data-active="form.urine_color===c" @click="form.urine_color=c" x-text="c"></button>
+                  </template>
+                </div>
+                <template x-if="form.urine_color==='amarela escura' || form.urine_color==='com cristais'">
+                  <div class="mt-2 text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-400/15 rounded-lg px-3 py-2">
+                    ⚠️ Pode indicar hidratação insuficiente. Aumentar frequência de mamadas.
+                  </div>
+                </template>
+              </div>
+            </template>
+            <template x-if="form.diaperKind==='poop' || form.diaperKind==='both'">
+              <div>
+                <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Consistência</label>
+                <div class="grid grid-cols-4 gap-2">
+                  <template x-for="c in ['líquida','pastosa','normal','dura']" :key="c">
+                    <button class="btn-tap py-2 rounded-xl segbtn text-xs" :data-active="form.poop_desc===c" @click="form.poop_desc=c" x-text="c"></button>
+                  </template>
+                </div>
+                <div class="mt-3">
+                  <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Cor</label>
+                  <div class="grid grid-cols-4 gap-2">
+                    <template x-for="c in ['amarelada','mostarda','verde','castanha']" :key="c">
+                      <button class="btn-tap py-2 rounded-xl segbtn text-xs" :data-active="form.poop_color===c" @click="form.poop_color=c" x-text="c"></button>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- WEIGHT -->
+        <template x-if="sheet==='weight'">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Peso (gramas)</label>
+              <div class="flex items-center gap-2">
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.grams=Math.max(0,(form.grams||0)-10)">−</button>
+                <input type="number" inputmode="numeric" class="flex-1 p-4 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-2xl font-semibold" x-model.number="form.grams" placeholder="2715">
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.grams=(form.grams||0)+10">+</button>
+              </div>
+              <template x-if="lastWeight && form.grams">
+                <div class="mt-2 text-sm text-center num-input" x-html="weightDeltaHtml()"></div>
+              </template>
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Notas</label>
+              <input class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.notes" placeholder="ex.: sem fralda, balança de casa">
+            </div>
+          </div>
+        </template>
+
+        <!-- PUMPING -->
+        <template x-if="sheet==='pumping'">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Duração (min) <span class="text-slate-400">· sugestão 10–15</span></label>
+              <div class="flex items-center gap-2">
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.duration_min=Math.max(0,(form.duration_min||0)-5)">−</button>
+                <input type="number" inputmode="numeric" class="flex-1 p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-lg" x-model.number="form.duration_min">
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.duration_min=(form.duration_min||0)+5">+</button>
+              </div>
+              <div class="flex gap-2 mt-2">
+                <template x-for="v in [10,12,15]" :key="v">
+                  <button class="btn-tap flex-1 py-2 rounded-lg text-xs bg-mint-100 dark:bg-night-2" @click="form.duration_min=v" x-text="v+' min'"></button>
+                </template>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Volume total (ml)</label>
+              <div class="flex items-center gap-2">
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml=Math.max(0,(form.ml||0)-5)">−</button>
+                <input type="number" inputmode="numeric" class="flex-1 p-4 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-2xl font-semibold" x-model.number="form.ml">
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml=(form.ml||0)+5">+</button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Mama</label>
+              <div class="grid grid-cols-3 gap-2">
+                <template x-for="s in [{v:'E',l:'Esquerda'},{v:'D',l:'Direita'},{v:'ambos',l:'Ambas'}]" :key="s.v">
+                  <button class="btn-tap py-2 rounded-xl segbtn text-sm" :data-active="form.side===s.v" @click="form.side=s.v" x-text="s.l"></button>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- PROMIL -->
+        <template x-if="sheet==='promil'">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Nº de saquetas</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button class="btn-tap py-6 rounded-2xl segbtn text-2xl font-semibold" :data-active="form.sachets===1" @click="form.sachets=1">1 saqueta</button>
+                <button class="btn-tap py-6 rounded-2xl segbtn text-2xl font-semibold" :data-active="form.sachets===2" @click="form.sachets=2">2 saquetas</button>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- COLIC -->
+        <template x-if="sheet==='colic'">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Intensidade</label>
+              <div class="flex justify-between gap-1">
+                <template x-for="n in [1,2,3,4,5]" :key="n">
+                  <button class="btn-tap star-btn text-4xl flex-1 py-2 text-slate-300 dark:text-slate-600"
+                          :class="form.severity>=n?'on':''"
+                          @click="form.severity=n">★</button>
+                </template>
+              </div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 flex justify-between"><span>leve</span><span>forte</span></div>
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Duração (min)</label>
+              <input type="number" inputmode="numeric" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="form.duration_min">
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">O que ajudou?</label>
+              <div class="flex flex-wrap gap-2">
+                <template x-for="c in colicChips" :key="c">
+                  <button class="chip px-3 py-1.5 rounded-full text-sm bg-mint-100 dark:bg-night-2 border border-mint-200/70 dark:border-night-2"
+                          :data-on="form.helped?.includes(c)"
+                          @click="toggleChip('helped', c)" x-text="c"></button>
+                </template>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Notas</label>
+              <textarea class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" rows="2" x-model="form.notes"></textarea>
+            </div>
+          </div>
+        </template>
+
+        <!-- NOTE -->
+        <template x-if="sheet==='note'">
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Nota</label>
+            <textarea class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" rows="5" x-model="form.text" placeholder="observação do dia, dúvida para a enfermeira..."></textarea>
+          </div>
+        </template>
+
+        <!-- SETTINGS -->
+        <template x-if="sheet==='settings'">
+          <div class="space-y-5">
+            <div>
+              <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Perfil</div>
+              <div class="space-y-2">
+                <div>
+                  <label class="text-xs text-slate-500">Nome</label>
+                  <input class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="profile.name">
+                </div>
+                <div>
+                  <label class="text-xs text-slate-500">Data de nascimento</label>
+                  <input type="date" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="profile.dob">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="text-xs text-slate-500">Semanas gest.</label>
+                    <input type="number" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="profile.gestational_weeks">
+                  </div>
+                  <div>
+                    <label class="text-xs text-slate-500">Dias gest.</label>
+                    <input type="number" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="profile.gestational_days">
+                  </div>
+                </div>
+                <div>
+                  <label class="text-xs text-slate-500">Peso ao nascer (g)</label>
+                  <input type="number" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="profile.birth_weight_g">
+                </div>
+                <label class="flex items-center gap-2 p-3 rounded-xl bg-mint-50 dark:bg-night-2">
+                  <input type="checkbox" x-model="profile.mother_has_hashimoto" class="w-5 h-5">
+                  <span class="text-sm">Mãe com Hashimoto (fórmula sem iodo)</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Metas & Cálculos</div>
+              <div class="space-y-2">
+                <div>
+                  <label class="text-xs text-slate-500">Mamadas/dia (meta)</label>
+                  <input type="number" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="settings.target_feedings_per_day">
+                </div>
+                <div>
+                  <label class="text-xs text-slate-500">Mínimo fraldas molhadas/dia</label>
+                  <input type="number" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="settings.min_wet_diapers">
+                </div>
+                <div>
+                  <label class="text-xs text-slate-500">Ganho mín. peso g/dia</label>
+                  <input type="number" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="settings.min_weight_gain_g_per_day">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="text-xs text-slate-500">Fórmula ml/kg/dia</label>
+                    <input type="number" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="settings.supplement_formula_ml_per_kg">
+                  </div>
+                  <div>
+                    <label class="text-xs text-slate-500">Nº refeições</label>
+                    <input type="number" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 num-input" x-model.number="settings.supplement_meals_divisor">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Backup</div>
+              <div class="grid grid-cols-2 gap-2">
+                <button class="btn-tap py-3 rounded-xl bg-mint-100 dark:bg-night-2 text-sm font-medium" @click="exportData()">⬇️ Exportar JSON</button>
+                <label class="btn-tap py-3 rounded-xl bg-mint-100 dark:bg-night-2 text-sm font-medium text-center cursor-pointer">
+                  ⬆️ Restaurar
+                  <input type="file" accept="application/json" class="hidden" @change="importData($event)">
+                </label>
+                <button class="btn-tap col-span-2 py-3 rounded-xl bg-rose-200 dark:bg-rose-400/30 text-sm font-medium" @click="clearAll()">🗑️ Apagar tudo (duplo)</button>
+              </div>
+              <div class="mt-3 text-xs text-slate-500 dark:text-slate-400 text-center">
+                <span x-text="records.length"></span> registos guardados neste dispositivo.
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div class="sticky bottom-0 bg-white dark:bg-night-1 border-t border-mint-100 dark:border-night-2 p-4 safe-bottom">
+        <template x-if="sheet==='settings'">
+          <button class="btn-tap w-full py-4 rounded-2xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold text-lg" @click="saveSettings()">Guardar</button>
+        </template>
+        <template x-if="sheet!=='settings'">
+          <button class="btn-tap w-full py-4 rounded-2xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold text-lg" @click="saveRecord()" x-text="editing ? 'Guardar alterações' : 'Guardar registo'"></button>
+        </template>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Toast (com undo) -->
+<div x-show="toast.msg" x-transition class="fixed left-1/2 -translate-x-1/2 bottom-24 z-50 px-4 py-2 rounded-full bg-slate-900 text-white text-sm shadow-lg flex items-center gap-3">
+  <span x-text="toast.msg"></span>
+  <button x-show="toast.undo" class="text-mint-200 font-semibold" @click="doUndo()">Desfazer</button>
+</div>
+
+<script>
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE = 'bernardo-v2';
+    self.addEventListener('install', e => self.skipWaiting());
+    self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+    self.addEventListener('fetch', e => {
+      const req = e.request;
+      if (req.method !== 'GET') return;
+      e.respondWith(
+        caches.open(CACHE).then(async cache => {
+          const cached = await cache.match(req);
+          const fetched = fetch(req).then(res => {
+            if (res && res.status === 200 && req.url.startsWith('http')) {
+              try { cache.put(req, res.clone()); } catch(_){}
+            }
+            return res;
+          }).catch(() => cached);
+          return cached || fetched;
+        })
+      );
+    });
+  `;
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const url = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(url).catch(()=>{});
+}
+
+function uuid() {
+  return (crypto.randomUUID && crypto.randomUUID()) ||
+    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8);
+      return v.toString(16);
+    });
+}
+
+function app() {
+  return {
+    theme: 'light',
+    tab: 'today',
+    tabs: [
+      { id:'today',   label:'Hoje',      icon:'🏠' },
+      { id:'charts',  label:'Gráficos',  icon:'📊' },
+      { id:'history', label:'Histórico', icon:'📜' },
+      { id:'guide',   label:'Guia',      icon:'📖' }
+    ],
+    guideTab: 'age',
+    sheet: null, sheetTitle: '',
+    editing: null,
+    fabOpen: false,
+    fabItems: [
+      { k:'weight',  label:'Peso',      icon:'⚖️' },
+      { k:'pumping', label:'Extração',  icon:'🍼' },
+      { k:'promil',  label:'Promil',    icon:'💊' },
+      { k:'colic',   label:'Cólica',    icon:'😣' },
+      { k:'note',    label:'Nota',      icon:'✏️' }
+    ],
+    toast: { msg:'', undo:null, _t:null },
+    profile: {
+      name: 'Bernardo',
+      dob: '2026-07-04',
+      gestational_weeks: 35,
+      gestational_days: 3,
+      birth_weight_g: 2715,
+      mother_has_hashimoto: true
+    },
+    settings: {
+      target_feedings_per_day: 10,
+      min_wet_diapers: 6,
+      min_weight_gain_g_per_day: 20,
+      supplement_formula_ml_per_kg: 150,
+      supplement_meals_divisor: 8
+    },
+    records: [],
+    form: {},
+    calc: { weight: 2715, mlPerKg: 150, meals: 8 },
+    chartRange: '14',
+    histFilter: 'all',
+    timer: { running:false, startedAt:0, elapsed:0 },
+    _tick: null,
+    _charts: {},
+    _now: Date.now(),
+    _clockT: null,
+
+    feedingChips: ['sonolento','boa pega','recusou mama','acordado','muitas pausas','estimulei','arrotou bem','regurgitou'],
+    colicChips: ['pele com pele','babywearing','massagem conchinha','colo','nada'],
+
+    consultaCards: [
+      { id:'pega', icon:'👄', open:true, title:'Pega correta (checklist)', body:`
+        <ul class="list-disc pl-5 space-y-1">
+          <li>Boca <b>bem aberta</b> (>140°) antes de encostar à mama.</li>
+          <li>Lábio inferior virado para fora ("peixinho").</li>
+          <li>Queixo toca na mama; nariz livre.</li>
+          <li>Aréola visível <b>mais em cima</b> do que em baixo.</li>
+          <li>Sem dor. Se dói, retirar e voltar a colocar.</li>
+        </ul>` },
+      { id:'sinais-fome', icon:'🔎', open:false, title:'Sinais de fome (3 estágios)', body:`
+        <ol class="list-decimal pl-5 space-y-1">
+          <li><b>"Onde está a mama?"</b> — abre a boca, roda a cabeça, chucha nas mãos.</li>
+          <li><b>"Tenho fome"</b> — movimentos de sucção, resmungos, mãos à boca com mais intensidade.</li>
+          <li><b>"Tenho MUITA fome"</b> — choro. <span class="text-rose-400 font-medium">Evitar chegar aqui</span> — a pega fica pior e ele cansa antes de mamar bem.</li>
+        </ol>` },
+      { id:'succao', icon:'💧', open:false, title:'Sucção eficaz vs ineficaz', body:`
+        <table class="w-full text-xs">
+          <thead><tr class="text-left border-b border-mint-200/60"><th class="py-1">Eficaz ✓</th><th class="py-1">Ineficaz ✗</th></tr></thead>
+          <tbody class="align-top">
+            <tr><td class="py-1 pr-2">Suga-suga-suga → engole audível</td><td class="py-1">Só suga, não engole</td></tr>
+            <tr><td class="py-1 pr-2">Pausas curtas (≤3s)</td><td class="py-1">Pausas longas, adormece</td></tr>
+            <tr><td class="py-1 pr-2">Bochechas cheias, sem ruído</td><td class="py-1">"Clique" (perde vácuo)</td></tr>
+            <tr><td class="py-1 pr-2">Deixa a mama satisfeito</td><td class="py-1">Larga chorando ou pede sempre</td></tr>
+          </tbody>
+        </table>` },
+      { id:'padrao', icon:'🎯', open:false, title:'Padrão de sucção do Bernardo', body:`
+        <p>Padrão esperado: <b>suga-suga-suga-ENGOLE</b> com pausas <b>≤ 3 segundos</b>.</p>
+        <p>Se parar de sugar/engolir mais tempo que isso, <b>estimular</b>:</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>Massagem no <b>queixo</b> (círculos pequenos)</li>
+          <li>Toque na base da <b>orelha</b></li>
+          <li>Toque leve no <b>nariz</b></li>
+          <li>Fricção nos <b>pés</b></li>
+        </ul>` },
+      { id:'biberao', icon:'🍼', open:false, title:'Técnica com biberão (paced feeding)', body:`
+        <ul class="list-disc pl-5 space-y-1">
+          <li>Bebé <b>sentado</b>, biberão a <b>45°</b>.</li>
+          <li>Tetina <b>sempre cheia de leite</b> (evitar ar).</li>
+          <li>Estimular o céu-da-boca com a tetina antes de introduzir.</li>
+          <li>Pausas a cada ~10 sucções — inclinar o biberão para baixo.</li>
+          <li>Fluxo lento — o objetivo é imitar a mama, não substituí-la.</li>
+        </ul>` },
+      { id:'conchinha', icon:'🤲', open:false, title:'Massagem da Conchinha (cólicas)', body:`
+        <ol class="list-decimal pl-5 space-y-1">
+          <li>Deitar o bebé de barriga para cima em superfície firme.</li>
+          <li>Mãos em forma de <b>concha</b>, envolvendo a barriga.</li>
+          <li>Movimentos circulares <b>no sentido dos ponteiros do relógio</b> (segue o trajeto do cólon).</li>
+          <li>Alternar com "bicicleta" nas pernas, joelhos ao peito.</li>
+          <li>2–3 séries de 1–2 min, várias vezes ao dia.</li>
+        </ol>` },
+      { id:'power', icon:'💪', open:false, title:'Power Pumping (estimular produção)', body:`
+        <p><b>Protocolo:</b> <span class="num-input">10 min extrai → 10 pausa → 10 extrai → 10 pausa → 10 extrai</span>.</p>
+        <p><b>Frequência:</b> 1–2× por dia, no máximo <b>1 semana</b>.</p>
+        <p>Simula um dia de cluster feeding e sinaliza ao corpo para aumentar a produção.</p>` },
+      { id:'iodo', icon:'⚠️', open:true, title:'ATENÇÃO: fórmula SEM iodo', body:`
+        <p class="text-rose-400 font-semibold">Escolher sempre suplemento alimentar <b>SEM iodo adicional</b>.</p>
+        <p>A mãe tem Hashimoto — iodo adicional na fórmula pode interferir com a função tiroideia (dela e do bebé, via leite materno).</p>
+        <p>Confirmar sempre o rótulo e validar com pediatra/endocrinologia.</p>` }
+    ],
+
+    init() {
+      const p = localStorage.getItem('bernardo_profile');
+      if (p) Object.assign(this.profile, JSON.parse(p));
+      const s = localStorage.getItem('bernardo_settings');
+      if (s) Object.assign(this.settings, JSON.parse(s));
+      const r = localStorage.getItem('bernardo_records');
+      if (r) this.records = JSON.parse(r);
+      const t = localStorage.getItem('bernardo_timer');
+      if (t) { const parsed = JSON.parse(t); if (parsed?.startedAt) this.timer = { running:true, startedAt: parsed.startedAt, elapsed: (Date.now()-parsed.startedAt)/1000 }; }
+      this.theme = localStorage.getItem('bernardo_theme') ||
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      this.calc = { weight: this.profile.birth_weight_g || 2715, mlPerKg: this.settings.supplement_formula_ml_per_kg, meals: this.settings.supplement_meals_divisor };
+      this.$watch('records',  v => localStorage.setItem('bernardo_records',  JSON.stringify(v)));
+      this.$watch('profile',  v => localStorage.setItem('bernardo_profile',  JSON.stringify(v)));
+      this.$watch('settings', v => localStorage.setItem('bernardo_settings', JSON.stringify(v)));
+      this.$watch('tab', v => { if (v==='charts') this.$nextTick(()=>this.renderCharts()); });
+      this._clockT = setInterval(()=> this._now = Date.now(), 30000);
+      if (this.timer.running) this.startTicking();
+    },
+
+    toggleTheme() {
+      this.theme = this.theme==='dark' ? 'light' : 'dark';
+      localStorage.setItem('bernardo_theme', this.theme);
+      if (this.tab==='charts') this.$nextTick(()=>this.renderCharts());
+    },
+
+    get ageDays() {
+      if (!this.profile.dob) return 0;
+      return Math.floor((this._now - new Date(this.profile.dob).getTime())/86400000);
+    },
+    get ageText() {
+      const d = this.ageDays;
+      if (!d && !this.profile.dob) return '—';
+      if (d < 14) return `${d} d`;
+      if (d < 60) return `${Math.floor(d/7)}s ${d%7}d`;
+      return `${Math.floor(d/30.44)} m`;
+    },
+    get correctedAgeText() {
+      if (!this.profile.dob) return '—';
+      const gestDays = (this.profile.gestational_weeks||40)*7 + (this.profile.gestational_days||0);
+      const corrected = this.ageDays - (40*7 - gestDays);
+      if (corrected < 0) return `${-corrected} d p/ termo`;
+      if (corrected < 14) return `${corrected} d`;
+      return `${Math.floor(corrected/7)}s ${corrected%7}d`;
+    },
+    get correctedAgeDays() {
+      if (!this.profile.dob) return 0;
+      const gestDays = (this.profile.gestational_weeks||40)*7 + (this.profile.gestational_days||0);
+      return this.ageDays - (40*7 - gestDays);
+    },
+    get todayDateShort() {
+      return new Date(this._now).toLocaleDateString('pt-PT', { weekday:'short', day:'2-digit', month:'short' });
+    },
+
+    startOfToday() { const d = new Date(this._now); d.setHours(0,0,0,0); return d.getTime(); },
+    isToday(ts) { const t = new Date(ts).getTime(); return t >= this.startOfToday() && t < this.startOfToday()+86400000; },
+
+    get todayRecords() { return this.records.filter(r => this.isToday(r.timestamp)); },
+    get today() {
+      const tr = this.todayRecords;
+      const feedings = tr.filter(r => r.type==='feeding').length;
+      const wetDiapers = tr.filter(r => r.type==='diaper' && (r.data.diaperKind==='wet' || r.data.diaperKind==='both')).length;
+      const supplementMl = tr.filter(r => r.type==='feeding').reduce((s,r) => s + (Number(r.data.ml)||0), 0);
+      return { feedings, wetDiapers, supplementMl };
+    },
+    get kpiFeedings() {
+      const c = this.today.feedings;
+      if (c >= 8) return { status:'good' };
+      if (c >= 5) return { status:'warn' };
+      return { status:'alert' };
+    },
+    get kpiDiapers() {
+      const c = this.today.wetDiapers;
+      return c >= this.settings.min_wet_diapers ? { status:'good' } : { status:'alert' };
+    },
+    kpiClasses(s) {
+      return s==='good'  ? 'bg-mint-100  dark:bg-mint-500/20  border-mint-300  dark:border-mint-500/40  text-mint-500  dark:text-mint-100'
+           : s==='warn'  ? 'bg-amber-100 dark:bg-amber-400/15 border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-100'
+           :               'bg-rose-100  dark:bg-rose-400/20  border-rose-300  dark:border-rose-500/40  text-rose-400  dark:text-rose-100';
+    },
+    kpiBar(s) { return s==='good' ? '#2E9599' : s==='warn' ? '#f59e0b' : '#D26571'; },
+
+    get lastFeeding() {
+      return this.records.filter(r => r.type==='feeding').sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp))[0];
+    },
+    get lastFeedingBig() {
+      if (!this.lastFeeding) return '—';
+      const min = Math.floor((this._now - new Date(this.lastFeeding.timestamp).getTime())/60000);
+      if (min < 60) return `${min} min`;
+      const h = Math.floor(min/60), m = min%60;
+      return `${h}h ${String(m).padStart(2,'0')}`;
+    },
+    get nextFeedingHint() {
+      if (!this.lastFeeding) return 'sem registo';
+      const target = 24*60 / (this.settings.target_feedings_per_day || 10);
+      const min = Math.floor((this._now - new Date(this.lastFeeding.timestamp).getTime())/60000);
+      const remaining = Math.max(0, Math.round(target - min));
+      if (remaining <= 0) return 'próxima: agora';
+      return `próxima em ~${remaining} min`;
+    },
+    get lastWeight() {
+      return this.records.filter(r => r.type==='weight').sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp))[0];
+    },
+    get avgGainText() {
+      const ws = this.records.filter(r=>r.type==='weight').sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      if (ws.length < 2) return 'insuficiente';
+      const f = ws[0], l = ws[ws.length-1];
+      const days = Math.max(1, (new Date(l.timestamp)-new Date(f.timestamp))/86400000);
+      return `${((l.data.grams-f.data.grams)/days).toFixed(1)} g/dia (mín. ${this.settings.min_weight_gain_g_per_day})`;
+    },
+    get supplementPerMeal() {
+      const w = this.lastWeight?.data?.grams || this.profile.birth_weight_g;
+      if (!w) return 0;
+      return Math.round((w/1000) * this.settings.supplement_formula_ml_per_kg / this.settings.supplement_meals_divisor);
+    },
+    get targetDailyMl() {
+      const w = this.lastWeight?.data?.grams || this.profile.birth_weight_g;
+      return w ? Math.round((w/1000) * this.settings.supplement_formula_ml_per_kg) : 0;
+    },
+    get recentRecords() {
+      return [...this.records].sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp)).slice(0,6);
+    },
+    get groupedHistory() {
+      const filtered = this.histFilter==='all' ? this.records : this.records.filter(r => r.type===this.histFilter);
+      const sorted = [...filtered].sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp));
+      const groups = {};
+      for (const r of sorted) {
+        const d = new Date(r.timestamp); d.setHours(0,0,0,0);
+        const k = d.getTime();
+        if (!groups[k]) groups[k] = { day:k, label:this.dayLabel(d), items:[] };
+        groups[k].items.push(r);
+      }
+      return Object.values(groups);
+    },
+
+    get alerts() {
+      const out = [];
+      const ws = this.records.filter(r=>r.type==='weight').sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      if (ws.length >= 2) {
+        const l = ws[ws.length-1], p = ws[ws.length-2];
+        const days = Math.max(1, (new Date(l.timestamp)-new Date(p.timestamp))/86400000);
+        const gpd = (l.data.grams - p.data.grams)/days;
+        if (gpd < this.settings.min_weight_gain_g_per_day) {
+          out.push({ id:'gain', tone:'alert', icon:'⚠️', title:'Ganho de peso abaixo do mínimo',
+            detail:`${gpd.toFixed(1)} g/dia na última pesagem (mín. ${this.settings.min_weight_gain_g_per_day}).` });
+        } else {
+          out.push({ id:'gain-good', tone:'good', icon:'🎉', title:`Ganho ≥ ${this.settings.min_weight_gain_g_per_day} g/dia esta semana!`,
+            detail:`${gpd.toFixed(1)} g/dia — a crescer bem.` });
+        }
+      }
+      const last24 = this.records.filter(r => (this._now - new Date(r.timestamp).getTime()) < 86400000);
+      const wetsIn24 = last24.filter(r => r.type==='diaper' && (r.data.diaperKind==='wet' || r.data.diaperKind==='both')).length;
+      const hoursIntoDay = new Date(this._now).getHours() + new Date(this._now).getMinutes()/60;
+      if (wetsIn24 < this.settings.min_wet_diapers && hoursIntoDay >= 18) {
+        out.push({ id:'wet', tone:'alert', icon:'💧', title:'Poucas fraldas molhadas nas últimas 24h',
+          detail:`${wetsIn24} molhadas (mín. ${this.settings.min_wet_diapers}). Aumentar frequência de mamadas.` });
+      }
+      const dayFeeds = this.records.filter(r => r.type==='feeding')
+        .filter(r => { const h = new Date(r.timestamp).getHours(); return h>=6 && h<22 && this.isToday(r.timestamp); })
+        .sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      for (let i=1; i<dayFeeds.length; i++) {
+        const gap = (new Date(dayFeeds[i].timestamp)-new Date(dayFeeds[i-1].timestamp))/60000;
+        if (gap > 240) {
+          out.push({ id:'gap', tone:'warn', icon:'⏰', title:'Intervalo >4h entre mamadas',
+            detail:`${Math.round(gap)} min entre ${this.fmtTime(dayFeeds[i-1].timestamp)} e ${this.fmtTime(dayFeeds[i].timestamp)}.` });
+          break;
+        }
+      }
+      const thisWeek = this.sumSupplementDays(0,7);
+      const prevWeek = this.sumSupplementDays(7,14);
+      if (prevWeek > 0) {
+        const delta = thisWeek - prevWeek;
+        const pct = (delta/prevWeek)*100;
+        if (pct > 10) {
+          out.push({ id:'sup-up', tone:'warn', icon:'📈', title:'Suplemento a aumentar semana a semana',
+            detail:`${thisWeek} ml (últimos 7d) vs ${prevWeek} ml (7d anteriores). Pode indicar menor eficácia na mama — falar com enfª.` });
+        } else if (pct < -10) {
+          out.push({ id:'sup-down', tone:'good', icon:'🎉', title:'Reduziu suplemento!',
+            detail:`${Math.abs(Math.round(pct))}% a menos face à semana anterior. Sinal positivo.` });
+        }
+      }
+      return out;
+    },
+    sumSupplementDays(from, to) {
+      const now = this._now;
+      return this.records
+        .filter(r => r.type==='feeding')
+        .filter(r => { const dt = now - new Date(r.timestamp).getTime(); return dt >= from*86400000 && dt < to*86400000; })
+        .reduce((s,r) => s + (Number(r.data.ml)||0), 0);
+    },
+
+    icon(t) { return {feeding:'🤱',diaper:'💧',weight:'⚖️',pumping:'🍼',promil:'💊',colic:'😣',note:'✏️'}[t] || '•'; },
+    labelType(t) { return {feeding:'Mamada',diaper:'Fralda',weight:'Peso',pumping:'Extração',promil:'Promil',colic:'Cólica',note:'Nota'}[t] || t; },
+    fmtTime(ts) { return new Date(ts).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'}); },
+    fmtDate(ts) { return new Date(ts).toLocaleDateString('pt-PT',{day:'2-digit',month:'short'}); },
+    dayLabel(d) {
+      const today = new Date(this._now); today.setHours(0,0,0,0);
+      const diff = Math.round((today.getTime()-d.getTime())/86400000);
+      if (diff===0) return 'Hoje';
+      if (diff===1) return 'Ontem';
+      if (diff<7)  return d.toLocaleDateString('pt-PT',{weekday:'long'});
+      return d.toLocaleDateString('pt-PT',{day:'2-digit',month:'long'});
+    },
+    timeAgo(ts) {
+      const m = Math.floor((this._now - new Date(ts).getTime())/60000);
+      if (m<1) return 'agora';
+      if (m<60) return `há ${m} min`;
+      const h = Math.floor(m/60);
+      if (h<24) return `há ${h}h`;
+      return `há ${Math.floor(h/24)} d`;
+    },
+    describe(r) {
+      const d = r.data || {};
+      switch (r.type) {
+        case 'feeding': {
+          const p = [];
+          if (d.method==='mama') p.push('Mama');
+          else if (d.method==='tetina') p.push('Tetina');
+          else if (d.method==='misto') p.push('Misto');
+          if ((d.method==='mama'||d.method==='misto') && d.side) p.push(({E:'E',D:'D',ambos:'E+D'})[d.side]);
+          if ((d.method==='mama'||d.method==='misto') && d.duration_min) p.push(`${d.duration_min} min`);
+          if ((d.method==='tetina'||d.method==='misto') && d.ml) p.push(`${d.ml} ml${d.source==='formula'?' fórm.':' mat.'}`);
+          if (d.notes_chips?.length) p.push(d.notes_chips.join(', '));
+          if (d.notes) p.push(`— ${d.notes}`);
+          return p.join(' · ');
+        }
+        case 'diaper': {
+          const k = {wet:'Molhada',poop:'Cocó',both:'Molhada + Cocó'}[d.diaperKind] || '';
+          const extras = [d.urine_color && `urina ${d.urine_color}`, d.poop_desc, d.poop_color].filter(Boolean).join(', ');
+          return extras ? `${k} (${extras})` : k;
+        }
+        case 'weight': return `${d.grams} g${d.notes?' · '+d.notes:''}`;
+        case 'pumping': {
+          const p = [`${d.ml||0} ml`];
+          if (d.side) p.push(({E:'E',D:'D',ambos:'E+D'})[d.side]);
+          if (d.duration_min) p.push(`${d.duration_min} min`);
+          return p.join(' · ');
+        }
+        case 'promil': return `${d.sachets||1} saqueta${(d.sachets||1)>1?'s':''}`;
+        case 'colic': return `${'★'.repeat(d.severity||0)}${(d.duration_min?' · '+d.duration_min+' min':'')}${d.helped?.length?' · '+d.helped.join(', '):''}${d.notes?' — '+d.notes:''}`;
+        case 'note': return d.text || '(vazio)';
+        default: return JSON.stringify(d);
+      }
+    },
+
+    openSheet(kind, existing) {
+      this.sheet = kind;
+      this.editing = existing || null;
+      this.sheetTitle = {
+        feeding:'Mamada', diaper:'Fralda', weight:'Peso', pumping:'Extração',
+        promil:'Promil', colic:'Cólica', note:'Nota', settings:'Definições'
+      }[kind] || '';
+      this.form = existing ? this.recordToForm(existing) : this.defaultForm(kind);
+    },
+    closeSheet() { this.sheet = null; this.editing = null; },
+    setWhen(choice) {
+      this.form.whenChoice = choice;
+      if (choice==='custom' && !this.form.timestamp) {
+        this.form.timestamp = new Date(this._now - new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+      }
+    },
+    defaultForm(kind) {
+      const base = { whenChoice:'now', timestamp:'' };
+      switch (kind) {
+        case 'feeding': return { ...base, method:'mama', side:'E', duration_min:15, ml:0, source:'materno', notes_chips:[], notes:'' };
+        case 'diaper':  return { ...base, diaperKind:'wet', urine_color:'clara', poop_desc:'', poop_color:'' };
+        case 'weight':  return { ...base, grams: this.lastWeight?.data?.grams || this.profile.birth_weight_g || 0, notes:'' };
+        case 'pumping': return { ...base, ml:0, side:'ambos', duration_min:12 };
+        case 'promil':  return { ...base, sachets:1 };
+        case 'colic':   return { ...base, severity:3, duration_min:10, helped:[], notes:'' };
+        case 'note':    return { ...base, text:'' };
+        default:        return base;
+      }
+    },
+    recordToForm(r) {
+      const localISO = new Date(new Date(r.timestamp).getTime() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+      return { ...r.data, whenChoice:'custom', timestamp: localISO };
+    },
+    computeTimestamp() {
+      if (this.form.whenChoice==='custom' && this.form.timestamp) return new Date(this.form.timestamp).toISOString();
+      return new Date().toISOString();
+    },
+    toggleChip(key, val) {
+      const arr = this.form[key] || [];
+      const i = arr.indexOf(val);
+      if (i>=0) arr.splice(i,1); else arr.push(val);
+      this.form[key] = [...arr];
+    },
+    saveRecord() {
+      if (this.sheet==='feeding' && this.timer.running) this.stopTimer();
+      if (this.sheet==='feeding' && this.timer.elapsed > 0 && !this.form.duration_min) {
+        this.form.duration_min = Math.round(this.timer.elapsed/60);
+      }
+      const { whenChoice, timestamp, ...data } = this.form;
+      const ts = this.computeTimestamp();
+      if (this.editing) {
+        this.records = this.records.map(r => r.id===this.editing.id ? { ...r, timestamp:ts, data } : r);
+        this.showToast(`✓ ${this.labelType(this.sheet)} atualizada`);
+      } else {
+        this.records = [...this.records, { id: uuid(), type: this.sheet, timestamp: ts, data }];
+        this.showToast(`✓ ${this.labelType(this.sheet)} guardada`);
+      }
+      if (this.sheet==='feeding') this.resetTimer();
+      this.closeSheet();
+    },
+    editRecord(r) { this.openSheet(r.type, r); },
+    deleteRecord(id) {
+      const rec = this.records.find(r => r.id===id);
+      if (!rec) return;
+      this.records = this.records.filter(r => r.id !== id);
+      this.showToast(`${this.labelType(rec.type)} apagada`, () => {
+        this.records = [...this.records, rec];
+        this.showToast('Restaurada');
+      });
+    },
+    doUndo() {
+      if (this.toast.undo) this.toast.undo();
+      clearTimeout(this.toast._t);
+      this.toast = { msg:'', undo:null, _t:null };
+    },
+    saveSettings() {
+      localStorage.setItem('bernardo_profile', JSON.stringify(this.profile));
+      localStorage.setItem('bernardo_settings', JSON.stringify(this.settings));
+      this.showToast('✓ Definições guardadas');
+      this.closeSheet();
+    },
+    clearAll() {
+      if (!confirm('Apagar TODOS os registos? Esta ação é irreversível.')) return;
+      if (!confirm('Tens a certeza absoluta? Confirmação dupla.')) return;
+      this.records = [];
+      this.showToast('Todos os registos apagados');
+    },
+    exportData() {
+      const payload = { profile: this.profile, settings: this.settings, records: this.records, exported_at: new Date().toISOString() };
+      this._download(`bernardo-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(payload, null, 2), 'application/json');
+      this.showToast('Dados exportados');
+    },
+    async importData(ev) {
+      const file = ev.target.files[0]; if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        if (data.profile)  Object.assign(this.profile, data.profile);
+        if (data.settings) Object.assign(this.settings, data.settings);
+        if (Array.isArray(data.records)) {
+          const existing = new Set(this.records.map(r => r.id));
+          this.records = [...this.records, ...data.records.filter(r => !existing.has(r.id))];
+        }
+        this.showToast('✓ Dados importados');
+      } catch (e) { alert('Ficheiro inválido: ' + e.message); }
+    },
+    exportWeekCSV() {
+      const now = this._now;
+      const weekAgo = now - 7*86400000;
+      const rows = [['timestamp','tipo','descricao']];
+      this.records
+        .filter(r => new Date(r.timestamp).getTime() >= weekAgo)
+        .sort((a,b) => new Date(a.timestamp)-new Date(b.timestamp))
+        .forEach(r => rows.push([r.timestamp, this.labelType(r.type), '"'+String(this.describe(r)).replace(/"/g,'""')+'"']));
+      const csv = rows.map(r => r.join(',')).join('\n');
+      this._download(`bernardo-semana-${new Date().toISOString().slice(0,10)}.csv`, csv, 'text/csv;charset=utf-8');
+      this.showToast('CSV da semana exportado');
+    },
+    _download(name, content, type) {
+      const blob = new Blob(['﻿'+content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; a.click();
+      URL.revokeObjectURL(url);
+    },
+    showToast(msg, undoFn) {
+      clearTimeout(this.toast._t);
+      this.toast = { msg, undo: undoFn || null, _t: null };
+      this.toast._t = setTimeout(() => this.toast = { msg:'', undo:null, _t:null }, undoFn ? 5000 : 2200);
+    },
+
+    startTicking() {
+      clearInterval(this._tick);
+      this._tick = setInterval(() => {
+        if (this.timer.running) this.timer = { ...this.timer, elapsed: (Date.now()-this.timer.startedAt)/1000 };
+      }, 1000);
+    },
+    startTimer() {
+      const startedAt = Date.now() - (this.timer.elapsed*1000 || 0);
+      this.timer = { running:true, startedAt, elapsed: this.timer.elapsed || 0 };
+      localStorage.setItem('bernardo_timer', JSON.stringify({ startedAt }));
+      this.startTicking();
+    },
+    stopTimer() {
+      if (this.timer.running) this.timer = { running:false, startedAt:0, elapsed: this.timer.elapsed };
+      clearInterval(this._tick);
+      localStorage.removeItem('bernardo_timer');
+      if (this.timer.elapsed > 0) this.form.duration_min = Math.round(this.timer.elapsed/60);
+    },
+    resetTimer() {
+      clearInterval(this._tick);
+      this.timer = { running:false, startedAt:0, elapsed:0 };
+      localStorage.removeItem('bernardo_timer');
+    },
+    get timerDisplay() {
+      const s = Math.floor(this.timer.elapsed || 0);
+      const m = Math.floor(s/60), r = s%60;
+      return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+    },
+    weightDeltaHtml() {
+      if (!this.lastWeight || !this.form.grams) return '';
+      const days = Math.max(1, (Date.now() - new Date(this.lastWeight.timestamp).getTime())/86400000);
+      const dg = this.form.grams - this.lastWeight.data.grams;
+      const perDay = dg/days;
+      const warn = perDay < this.settings.min_weight_gain_g_per_day;
+      const arrow = dg>=0 ? '+' : '';
+      return `<span class="text-slate-500 dark:text-slate-400">${arrow}${dg} g desde ${this.fmtDate(this.lastWeight.timestamp)}</span> · <b class="${warn?'text-rose-400':'text-mint-500'}">${arrow}${perDay.toFixed(1)} g/dia</b> ${warn ? '⚠️' : '✓'}`;
+    },
+
+    renderCharts() {
+      const days = parseInt(this.chartRange, 10);
+      const isDark = this.theme==='dark';
+      const grid = isDark ? '#2c3752' : '#E4DBC8';
+      const text = isDark ? '#94a3b8' : '#64748b';
+      Chart.defaults.color = text;
+      Chart.defaults.borderColor = grid;
+      Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif';
+
+      const dayKeys = [];
+      for (let i=days-1; i>=0; i--) {
+        const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
+        dayKeys.push(d);
+      }
+      const labels = dayKeys.map(d => d.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'}));
+
+      const feedingsPerDay = dayKeys.map(d => this.records.filter(r => r.type==='feeding' && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).length);
+      const wetPerDay  = dayKeys.map(d => this.records.filter(r => r.type==='diaper' && (r.data.diaperKind==='wet'  || r.data.diaperKind==='both') && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).length);
+      const poopPerDay = dayKeys.map(d => this.records.filter(r => r.type==='diaper' && (r.data.diaperKind==='poop' || r.data.diaperKind==='both') && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).length);
+      const supPerDay  = dayKeys.map(d => this.records.filter(r => r.type==='feeding' && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).reduce((s,r) => s + (Number(r.data.ml)||0), 0));
+
+      const weightsAll = this.records.filter(r => r.type==='weight').sort((a,b) => new Date(a.timestamp)-new Date(b.timestamp));
+      const cutoff = Date.now() - days*86400000;
+      const weights = weightsAll.filter(r => new Date(r.timestamp).getTime() >= cutoff);
+      const targetLine = weights.length
+        ? [{ x: weights[0].timestamp, y: weights[0].data.grams },
+           { x: new Date().toISOString(), y: weights[0].data.grams + this.settings.min_weight_gain_g_per_day * ((Date.now()-new Date(weights[0].timestamp))/86400000) }]
+        : [];
+
+      this._chart('chartWeight', {
+        type: 'line',
+        data: {
+          datasets: [
+            { label:'Peso (g)', data: weights.map(r => ({ x:r.timestamp, y:r.data.grams })),
+              borderColor:'#2E9599', backgroundColor:'rgba(168,218,220,.35)',
+              tension:.25, fill:true, pointRadius:4, pointBackgroundColor:'#2E9599' },
+            { label:`meta +${this.settings.min_weight_gain_g_per_day}g/dia`, data: targetLine,
+              borderColor:'#D26571', borderDash:[5,4], pointRadius:0, fill:false, tension:0 }
+          ]
+        },
+        options: {
+          maintainAspectRatio:false, responsive:true,
+          scales:{ x:{ type:'time', time:{ unit: days>14?'week':'day', tooltipFormat:'dd/MM' }, grid:{ color:grid } }, y:{ grid:{ color:grid } } },
+          plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } } }
+        }
+      });
+
+      this._chart('chartFeedings', {
+        type:'bar',
+        data:{ labels, datasets:[{ label:'Mamadas', data:feedingsPerDay, backgroundColor:'#A8DADC' }] },
+        options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{ color:grid } }, y:{ beginAtZero:true, grid:{ color:grid } } } }
+      });
+
+      this._chart('chartDiapers', {
+        type:'bar',
+        data:{ labels, datasets:[
+          { label:'Molhadas', data:wetPerDay,  backgroundColor:'#7BC7CA' },
+          { label:'Cocó',     data:poopPerDay, backgroundColor:'#F1B0B7' }
+        ] },
+        options:{ maintainAspectRatio:false, responsive:true, scales:{ x:{ stacked:true, grid:{ color:grid } }, y:{ stacked:true, beginAtZero:true, grid:{ color:grid } } } }
+      });
+
+      this._chart('chartSupplement', {
+        type:'line',
+        data:{ labels, datasets:[{ label:'ml', data:supPerDay, borderColor:'#D26571', backgroundColor:'rgba(241,176,183,.35)', tension:.25, fill:true, pointRadius:3 }] },
+        options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{ color:grid } }, y:{ beginAtZero:true, grid:{ color:grid } } } }
+      });
+    },
+    _chart(id, cfg) {
+      const el = document.getElementById(id); if (!el) return;
+      if (this._charts[id]) this._charts[id].destroy();
+      this._charts[id] = new Chart(el.getContext('2d'), cfg);
+    },
+
+    get heatmap() {
+      const days = 7;
+      const rows = [];
+      for (let i=days-1; i>=0; i--) {
+        const d = new Date(this._now); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
+        const cells = new Array(24).fill(0);
+        this.records.filter(r => r.type==='feeding').forEach(r => {
+          const t = new Date(r.timestamp);
+          const dayStart = new Date(r.timestamp); dayStart.setHours(0,0,0,0);
+          if (dayStart.getTime()===d.getTime()) cells[t.getHours()]++;
+        });
+        rows.push({ day:d.getTime(), label:d.toLocaleDateString('pt-PT',{weekday:'short'}).slice(0,3), cells });
+      }
+      return rows;
+    },
+    heatColor(v) {
+      if (v===0) return this.theme==='dark' ? '#232d42' : '#F1ECE1';
+      const alpha = Math.min(1, 0.25 + v*0.25);
+      return `rgba(46,149,153,${alpha})`;
+    },
+
+    get expectationsHtml() {
+      const d = Math.max(-100, this.correctedAgeDays);
+      const weeks = d/7;
+      if (d < 0) return `<p>Ainda ${-d} dias até ao equivalente de termo. Foco: <b>manter mamadas frequentes (a cada 2–3h)</b>, calor, contacto pele-com-pele e ganho de peso.</p>`;
+      if (weeks < 2) return `
+        <p><b>Sono:</b> 16–18h/dia, muito fragmentado.</p>
+        <p><b>Mamadas:</b> 8–12/dia (a cada 2–3h). Prematuro tardio tende a ser sonolento — estimular na mama.</p>
+        <p><b>Comportamento:</b> passa a maior parte do tempo a dormir; períodos de alerta muito curtos.</p>
+        <p><b>Marcos:</b> reflexo de sucção coordenado; fixa o rosto próximo (~20 cm).</p>`;
+      if (weeks < 6) return `
+        <p><b>Sono:</b> 15–17h/dia. Começam a diferenciar-se dia/noite.</p>
+        <p><b>Mamadas:</b> 8–10/dia. Mamadas mais eficazes, menos pausas.</p>
+        <p><b>Comportamento:</b> primeiro sorriso social pode aparecer perto das 6 sem corrigidas.</p>
+        <p><b>Marcos:</b> segue objetos com o olhar, começa a levantar a cabeça em prono.</p>`;
+      if (weeks < 12) return `
+        <p><b>Sono:</b> 14–16h/dia com blocos noturnos maiores (4–6h).</p>
+        <p><b>Mamadas:</b> 7–9/dia. Suplemento idealmente em redução.</p>
+        <p><b>Comportamento:</b> sorriso social claro, vocalizações.</p>
+        <p><b>Marcos:</b> abre as mãos, agarra objetos, segue movimento 180°.</p>`;
+      return `<p>Bebé mais estabilizado. Continuar acompanhamento com pediatra e enfermeira.</p>`;
+    },
+    get colicPhaseHtml() {
+      const cronoDays = this.ageDays;
+      const peak = cronoDays >= 21 && cronoDays <= 45;
+      const inWindow = cronoDays >= 14 && cronoDays <= 90;
+      if (cronoDays < 14) return `<p>Ainda não deverá estar em fase de cólicas. Pico esperado das <b>2 semanas cronológicas</b> aos <b>2–3 meses</b>.</p>`;
+      if (peak) return `<p>🟠 <b>Pico da fase de cólicas.</b> Choro no fim da tarde/noite é típico. Técnicas: pele com pele, babywearing, massagem da conchinha, colo em posição de cólica.</p>`;
+      if (inWindow) return `<p>Dentro da janela típica de cólicas (2 sem – 3 m). Pico próximo das 4–6 semanas cronológicas.</p>`;
+      return `<p>Fase de cólicas típica já passou. Se persistir choro inconsolável, consultar pediatra.</p>`;
+    },
+
+    get calcResult() {
+      const daily = Math.round((this.calc.weight/1000) * this.calc.mlPerKg);
+      const perMeal = this.calc.meals ? Math.round(daily / this.calc.meals) : 0;
+      return { daily, perMeal };
+    }
+  }
+}
+</script>
+</body>
+</html>
