@@ -31,7 +31,6 @@ tailwind.config = {
 </script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
   html,body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: contain; }
   body { font-size: 17px; padding-top: env(safe-area-inset-top); }
@@ -213,6 +212,38 @@ tailwind.config = {
       </template>
     </div>
 
+    <!-- Balanço leite materno (extraído vs usado) -->
+    <div class="p-4 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Leite materno</div>
+          <div class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Stock acumulado</div>
+        </div>
+        <div class="text-3xl font-semibold num-input" :class="milkStock>=0 ? 'text-mint-500 dark:text-mint-200' : 'text-rose-400'">
+          <span x-text="(milkStock>=0?'+':'')+milkStock"></span> <span class="text-sm text-slate-500 dark:text-slate-400 font-normal">ml</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-center pt-3 border-t border-mint-100 dark:border-night-2">
+        <div>
+          <div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Extraído hoje</div>
+          <div class="text-lg font-semibold num-input text-mint-500 dark:text-mint-200 mt-0.5" x-text="todayExtracted+' ml'"></div>
+        </div>
+        <div class="border-x border-mint-100 dark:border-night-2">
+          <div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Usado hoje</div>
+          <div class="text-lg font-semibold num-input text-rose-400 mt-0.5" x-text="todayMaternoUsed+' ml'"></div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Saldo hoje</div>
+          <div class="text-lg font-semibold num-input mt-0.5" :class="todayMilkBalance>=0 ? 'text-mint-500 dark:text-mint-200' : 'text-rose-400'" x-text="(todayMilkBalance>=0?'+':'')+todayMilkBalance+' ml'"></div>
+        </div>
+      </div>
+      <template x-if="milkStock < 0">
+        <div class="mt-3 text-xs px-3 py-2 rounded-lg bg-amber-100 dark:bg-amber-400/15 text-amber-800 dark:text-amber-200">
+          ⚠️ Usaste mais do que extraíste. Aumentar frequência de extrações (ou considerar power pumping).
+        </div>
+      </template>
+    </div>
+
     <!-- Timeline -->
     <div class="flex items-center justify-between mb-2">
       <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 px-1">Últimos registos</div>
@@ -274,6 +305,14 @@ tailwind.config = {
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
       <div class="text-sm font-medium mb-2">Suplemento (ml) por dia · <span class="text-xs text-slate-500 dark:text-slate-400 font-normal">objetivo: tendência descendente</span></div>
       <div class="h-48"><canvas id="chartSupplement"></canvas></div>
+    </div>
+
+    <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-sm font-medium">Leite materno: extraído vs usado</div>
+        <div class="text-xs num-input" :class="milkStock>=0 ? 'text-mint-500 dark:text-mint-200' : 'text-rose-400'" x-text="`stock: ${milkStock>=0?'+':''}${milkStock} ml`"></div>
+      </div>
+      <div class="h-56"><canvas id="chartMilk"></canvas></div>
     </div>
 
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
@@ -821,7 +860,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v2';
+    const CACHE = 'bernardo-v3';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
     self.addEventListener('fetch', e => {
@@ -981,6 +1020,7 @@ function app() {
       this.$watch('profile',  v => localStorage.setItem('bernardo_profile',  JSON.stringify(v)));
       this.$watch('settings', v => localStorage.setItem('bernardo_settings', JSON.stringify(v)));
       this.$watch('tab', v => { if (v==='charts') this.$nextTick(()=>this.renderCharts()); });
+      this.$watch('records', () => { if (this.tab==='charts') this.$nextTick(()=>this.renderCharts()); });
       this._clockT = setInterval(()=> this._now = Date.now(), 30000);
       if (this.timer.running) this.startTicking();
     },
@@ -1083,6 +1123,21 @@ function app() {
     get targetDailyMl() {
       const w = this.lastWeight?.data?.grams || this.profile.birth_weight_g;
       return w ? Math.round((w/1000) * this.settings.supplement_formula_ml_per_kg) : 0;
+    },
+    get todayExtracted() {
+      return this.todayRecords.filter(r => r.type==='pumping').reduce((s,r) => s + (Number(r.data.ml)||0), 0);
+    },
+    get todayMaternoUsed() {
+      return this.todayRecords.filter(r => r.type==='feeding' && r.data.source==='materno').reduce((s,r) => s + (Number(r.data.ml)||0), 0);
+    },
+    get todayMilkBalance() { return this.todayExtracted - this.todayMaternoUsed; },
+    get milkStock() {
+      let n = 0;
+      for (const r of this.records) {
+        if (r.type==='pumping') n += Number(r.data.ml)||0;
+        else if (r.type==='feeding' && r.data.source==='materno') n -= Number(r.data.ml)||0;
+      }
+      return n;
     },
     get recentRecords() {
       return [...this.records].sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp)).slice(0,6);
@@ -1398,29 +1453,43 @@ function app() {
       const wetPerDay  = dayKeys.map(d => this.records.filter(r => r.type==='diaper' && (r.data.diaperKind==='wet'  || r.data.diaperKind==='both') && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).length);
       const poopPerDay = dayKeys.map(d => this.records.filter(r => r.type==='diaper' && (r.data.diaperKind==='poop' || r.data.diaperKind==='both') && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).length);
       const supPerDay  = dayKeys.map(d => this.records.filter(r => r.type==='feeding' && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).reduce((s,r) => s + (Number(r.data.ml)||0), 0));
+      const extPerDay  = dayKeys.map(d => this.records.filter(r => r.type==='pumping' && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).reduce((s,r) => s + (Number(r.data.ml)||0), 0));
+      const usedPerDay = dayKeys.map(d => this.records.filter(r => r.type==='feeding' && r.data.source==='materno' && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).reduce((s,r) => s + (Number(r.data.ml)||0), 0));
+      let running = 0;
+      for (const r of this.records) {
+        if (new Date(r.timestamp).getTime() >= dayKeys[0].getTime()) continue;
+        if (r.type==='pumping') running += Number(r.data.ml)||0;
+        else if (r.type==='feeding' && r.data.source==='materno') running -= Number(r.data.ml)||0;
+      }
+      const stockPerDay = extPerDay.map((ext,i) => (running += ext - usedPerDay[i], running));
 
       const weightsAll = this.records.filter(r => r.type==='weight').sort((a,b) => new Date(a.timestamp)-new Date(b.timestamp));
-      const cutoff = Date.now() - days*86400000;
-      const weights = weightsAll.filter(r => new Date(r.timestamp).getTime() >= cutoff);
-      const targetLine = weights.length
-        ? [{ x: weights[0].timestamp, y: weights[0].data.grams },
-           { x: new Date().toISOString(), y: weights[0].data.grams + this.settings.min_weight_gain_g_per_day * ((Date.now()-new Date(weights[0].timestamp))/86400000) }]
-        : [];
+      const weightPerDay = dayKeys.map(d => {
+        const w = weightsAll.filter(r => new Date(r.timestamp).setHours(0,0,0,0)===d.getTime())
+                            .sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp))[0];
+        return w ? w.data.grams : null;
+      });
+      let firstW = null, firstIdx = -1;
+      weightPerDay.forEach((w,i) => { if (w!==null && firstW===null) { firstW=w; firstIdx=i; } });
+      const metaLine = weightPerDay.map((_,i) =>
+        firstIdx===-1 || i<firstIdx ? null : firstW + (i-firstIdx)*this.settings.min_weight_gain_g_per_day
+      );
 
       this._chart('chartWeight', {
         type: 'line',
         data: {
+          labels,
           datasets: [
-            { label:'Peso (g)', data: weights.map(r => ({ x:r.timestamp, y:r.data.grams })),
+            { label:'Peso (g)', data: weightPerDay,
               borderColor:'#2E9599', backgroundColor:'rgba(168,218,220,.35)',
-              tension:.25, fill:true, pointRadius:4, pointBackgroundColor:'#2E9599' },
-            { label:`meta +${this.settings.min_weight_gain_g_per_day}g/dia`, data: targetLine,
-              borderColor:'#D26571', borderDash:[5,4], pointRadius:0, fill:false, tension:0 }
+              tension:0, fill:false, pointRadius:5, pointBackgroundColor:'#2E9599', spanGaps:true },
+            { label:`meta +${this.settings.min_weight_gain_g_per_day}g/dia`, data: metaLine,
+              borderColor:'#D26571', borderDash:[5,4], pointRadius:0, fill:false, tension:0, spanGaps:true }
           ]
         },
         options: {
           maintainAspectRatio:false, responsive:true,
-          scales:{ x:{ type:'time', time:{ unit: days>14?'week':'day', tooltipFormat:'dd/MM' }, grid:{ color:grid } }, y:{ grid:{ color:grid } } },
+          scales:{ x:{ grid:{ color:grid } }, y:{ grid:{ color:grid } } },
           plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } } }
         }
       });
@@ -1445,11 +1514,31 @@ function app() {
         data:{ labels, datasets:[{ label:'ml', data:supPerDay, borderColor:'#D26571', backgroundColor:'rgba(241,176,183,.35)', tension:.25, fill:true, pointRadius:3 }] },
         options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{ color:grid } }, y:{ beginAtZero:true, grid:{ color:grid } } } }
       });
+
+      this._chart('chartMilk', {
+        data:{ labels, datasets:[
+          { type:'bar',  label:'Extraído', data:extPerDay,  backgroundColor:'#7BC7CA', order:2, yAxisID:'y' },
+          { type:'bar',  label:'Usado',    data:usedPerDay, backgroundColor:'#F1B0B7', order:2, yAxisID:'y' },
+          { type:'line', label:'Stock',    data:stockPerDay, borderColor:'#2E9599', backgroundColor:'rgba(46,149,153,.15)', tension:.2, pointRadius:2, order:1, yAxisID:'y1', fill:true }
+        ] },
+        options:{
+          maintainAspectRatio:false, responsive:true,
+          scales:{
+            x:{ grid:{ color:grid } },
+            y:{ beginAtZero:true, position:'left',  grid:{ color:grid }, title:{ display:true, text:'ml/dia' } },
+            y1:{ position:'right', grid:{ display:false }, title:{ display:true, text:'stock ml' } }
+          },
+          plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } } }
+        }
+      });
     },
     _chart(id, cfg) {
       const el = document.getElementById(id); if (!el) return;
-      if (this._charts[id]) this._charts[id].destroy();
-      this._charts[id] = new Chart(el.getContext('2d'), cfg);
+      try {
+        if (this._charts[id]) this._charts[id].destroy();
+        this._charts[id] = new Chart(el.getContext('2d'), cfg);
+        setTimeout(() => this._charts[id]?.resize(), 0);
+      } catch (e) { console.error(`Chart ${id} falhou:`, e); }
     },
 
     get heatmap() {
