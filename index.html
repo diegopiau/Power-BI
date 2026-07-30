@@ -221,7 +221,7 @@ tailwind.config = {
           <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Leite materno</div>
           <div class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Stock acumulado</div>
         </div>
-        <div class="text-3xl font-semibold num-input" :class="milkStock>=0 ? 'text-mint-500 dark:text-mint-200' : 'text-rose-400'">
+        <div class="text-3xl font-semibold num-input" :class="milkStock>=0 ? 'text-mint-500 dark:text-mint-200' : 'text-rose-400 dark:text-rose-300'">
           <span x-text="(milkStock>=0?'+':'')+milkStock"></span> <span class="text-sm text-slate-500 dark:text-slate-400 font-normal">ml</span>
         </div>
       </div>
@@ -232,11 +232,11 @@ tailwind.config = {
         </div>
         <div class="border-x border-mint-100 dark:border-night-2">
           <div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Usado hoje</div>
-          <div class="text-lg font-semibold num-input text-rose-400 mt-0.5" x-text="todayMaternoUsed+' ml'"></div>
+          <div class="text-lg font-semibold num-input text-rose-400 dark:text-rose-300 mt-0.5" x-text="todayMaternoUsed+' ml'"></div>
         </div>
         <div>
           <div class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Saldo hoje</div>
-          <div class="text-lg font-semibold num-input mt-0.5" :class="todayMilkBalance>=0 ? 'text-mint-500 dark:text-mint-200' : 'text-rose-400'" x-text="(todayMilkBalance>=0?'+':'')+todayMilkBalance+' ml'"></div>
+          <div class="text-lg font-semibold num-input mt-0.5" :class="todayMilkBalance>=0 ? 'text-mint-500 dark:text-mint-200' : 'text-rose-400 dark:text-rose-300'" x-text="(todayMilkBalance>=0?'+':'')+todayMilkBalance+' ml'"></div>
         </div>
       </div>
       <template x-if="milkStock < 0">
@@ -324,7 +324,7 @@ tailwind.config = {
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
       <div class="flex items-center justify-between mb-2">
         <div class="text-sm font-medium" x-text="`Leite materno: extraído vs usado (${chartRange} d)`"></div>
-        <div class="text-xs num-input" :class="milkStock>=0 ? 'text-mint-500 dark:text-mint-200' : 'text-rose-400'" x-text="`stock: ${milkStock>=0?'+':''}${milkStock} ml`"></div>
+        <div class="text-xs num-input" :class="milkStock>=0 ? 'text-mint-500 dark:text-mint-200' : 'text-rose-400 dark:text-rose-300'" x-text="`stock: ${milkStock>=0?'+':''}${milkStock} ml`"></div>
       </div>
       <div class="chart-wrap h-56"><canvas id="chartMilk"></canvas></div>
     </div>
@@ -875,7 +875,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v8';
+    const CACHE = 'bernardo-v9';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -925,7 +925,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v8';
+const APP_VERSION = 'v9';
 
 // Plugin inline para desenhar rótulos de valor nas barras/linhas.
 // Ativado por chart via options.plugins.valueLabels = { enabled: true, color, stack }.
@@ -935,8 +935,7 @@ Chart.register({
     const opts = chart.options?.plugins?.valueLabels;
     if (!opts || !opts.enabled) return;
     const { ctx } = chart;
-    const isDark = document.documentElement.classList.contains('dark');
-    const textColor = opts.color || (isDark ? '#e2e8f0' : '#334155');
+    const textColor = opts.color || (opts.dark ? '#e2e8f0' : '#334155');
     ctx.save();
     ctx.font = '600 10px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -1032,7 +1031,7 @@ function app() {
         <ol class="list-decimal pl-5 space-y-1">
           <li><b>"Onde está a mama?"</b> — abre a boca, roda a cabeça, chucha nas mãos.</li>
           <li><b>"Tenho fome"</b> — movimentos de sucção, resmungos, mãos à boca com mais intensidade.</li>
-          <li><b>"Tenho MUITA fome"</b> — choro. <span class="text-rose-400 font-medium">Evitar chegar aqui</span> — a pega fica pior e ele cansa antes de mamar bem.</li>
+          <li><b>"Tenho MUITA fome"</b> — choro. <span class="text-rose-400 dark:text-rose-300 font-medium">Evitar chegar aqui</span> — a pega fica pior e ele cansa antes de mamar bem.</li>
         </ol>` },
       { id:'succao', icon:'💧', open:false, title:'Sucção eficaz vs ineficaz', body:`
         <table class="w-full text-xs">
@@ -1074,7 +1073,7 @@ function app() {
         <p><b>Frequência:</b> 1–2× por dia, no máximo <b>1 semana</b>.</p>
         <p>Simula um dia de cluster feeding e sinaliza ao corpo para aumentar a produção.</p>` },
       { id:'iodo', icon:'⚠️', open:true, title:'ATENÇÃO: fórmula SEM iodo', body:`
-        <p class="text-rose-400 font-semibold">Escolher sempre suplemento alimentar <b>SEM iodo adicional</b>.</p>
+        <p class="text-rose-400 dark:text-rose-300 font-semibold">Escolher sempre suplemento alimentar <b>SEM iodo adicional</b>.</p>
         <p>A mãe tem Hashimoto — iodo adicional na fórmula pode interferir com a função tiroideia (dela e do bebé, via leite materno).</p>
         <p>Confirmar sempre o rótulo e validar com pediatra/endocrinologia.</p>` }
     ],
@@ -1506,7 +1505,7 @@ function app() {
       const perDay = dg/days;
       const warn = perDay < this.settings.min_weight_gain_g_per_day;
       const arrow = dg>=0 ? '+' : '';
-      return `<span class="text-slate-500 dark:text-slate-400">${arrow}${dg} g desde ${this.fmtDate(this.lastWeight.timestamp)}</span> · <b class="${warn?'text-rose-400':'text-mint-500'}">${arrow}${perDay.toFixed(1)} g/dia</b> ${warn ? '⚠️' : '✓'}`;
+      return `<span class="text-slate-500 dark:text-slate-400">${arrow}${dg} g desde ${this.fmtDate(this.lastWeight.timestamp)}</span> · <b class="${warn?'text-rose-400 dark:text-rose-300':'text-mint-500 dark:text-mint-200'}">${arrow}${perDay.toFixed(1)} g/dia</b> ${warn ? '⚠️' : '✓'}`;
     },
 
     renderCharts() {
@@ -1560,7 +1559,7 @@ function app() {
         firstIdx===-1 || i<firstIdx ? null : firstW + (i-firstIdx)*this.settings.min_weight_gain_g_per_day
       );
 
-      const vl = { enabled: showLabels };
+      const vl = { enabled: showLabels, dark: isDark };
 
       this._chart('chartWeight', {
         type: 'line',
