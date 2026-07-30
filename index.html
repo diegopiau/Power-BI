@@ -272,16 +272,16 @@ tailwind.config = {
 
   <!-- ================ TAB: GRÁFICOS ================ -->
   <section x-show="tab==='charts'">
-    <div class="mb-3 flex gap-2 items-center">
-      <div class="flex gap-2 flex-1">
-        <template x-for="r in ['7','14','30']" :key="r">
-          <button class="segbtn btn-tap flex-1 py-2 rounded-xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 text-sm"
-                  :data-active="chartRange===r" @click="chartRange=r"
-                  x-text="`${r} dias`"></button>
+    <div class="mb-3 space-y-2">
+      <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        <template x-for="r in rangeOptions" :key="r.v">
+          <button class="segbtn btn-tap px-3 py-2 rounded-xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 text-sm whitespace-nowrap flex-shrink-0"
+                  :data-active="chartRange===r.v" @click="chartRange=r.v"
+                  x-text="r.l"></button>
         </template>
       </div>
-      <button class="btn-tap px-3 py-2 rounded-xl bg-mint-200 dark:bg-mint-500/40 text-sm font-medium" @click="exportWeekCSV()">
-        ⬇️ CSV semana
+      <button class="btn-tap w-full px-3 py-2 rounded-xl bg-mint-200 dark:bg-mint-500/40 text-sm font-medium" @click="exportWeekCSV()">
+        ⬇️ Exportar CSV da última semana
       </button>
     </div>
 
@@ -296,12 +296,6 @@ tailwind.config = {
       <span class="text-slate-400" x-text="'app ' + APP_VERSION"></span>
     </div>
 
-    <!-- Debug: dados fixos para provar que Chart.js funciona -->
-    <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-dashed border-amber-400 dark:border-amber-500/60 mb-3">
-      <div class="text-sm font-medium mb-2 text-amber-800 dark:text-amber-200">🧪 Debug: gráfico de teste (dados fixos)</div>
-      <div class="chart-wrap h-48"><canvas id="chartDebug"></canvas></div>
-      <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Se este aparecer com barras coloridas, o Chart.js está OK no teu telemóvel.</div>
-    </div>
 
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
       <div class="flex items-center justify-between mb-2">
@@ -881,7 +875,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v7';
+    const CACHE = 'bernardo-v8';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -931,7 +925,39 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v7';
+const APP_VERSION = 'v8';
+
+// Plugin inline para desenhar rótulos de valor nas barras/linhas.
+// Ativado por chart via options.plugins.valueLabels = { enabled: true, color, stack }.
+Chart.register({
+  id: 'valueLabels',
+  afterDatasetsDraw(chart) {
+    const opts = chart.options?.plugins?.valueLabels;
+    if (!opts || !opts.enabled) return;
+    const { ctx } = chart;
+    const isDark = document.documentElement.classList.contains('dark');
+    const textColor = opts.color || (isDark ? '#e2e8f0' : '#334155');
+    ctx.save();
+    ctx.font = '600 10px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    chart.data.datasets.forEach((ds, di) => {
+      const meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;
+      // Saltar dataset marcado como skipLabel (ex: linha de meta, linha de stock)
+      if (ds.skipLabel) return;
+      meta.data.forEach((element, i) => {
+        const v = ds.data[i];
+        if (v === null || v === undefined || v === 0) return;
+        const isBar = element.constructor.name === 'BarElement';
+        const y = isBar ? element.y - 4 : element.y - 8;
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = textColor;
+        ctx.fillText(String(v), element.x, y);
+      });
+    });
+    ctx.restore();
+  }
+});
 
 function app() {
   return {
@@ -975,6 +1001,14 @@ function app() {
     form: {},
     calc: { weight: 2715, mlPerKg: 150, meals: 8 },
     chartRange: '14',
+    rangeOptions: [
+      { v:'7',   l:'7 dias'  },
+      { v:'14',  l:'14 dias' },
+      { v:'30',  l:'30 dias' },
+      { v:'60',  l:'60 dias' },
+      { v:'90',  l:'90 dias' },
+      { v:'all', l:'Tudo'    }
+    ],
     histFilter: 'all',
     timer: { running:false, startedAt:0, elapsed:0 },
     _tick: null,
@@ -1476,23 +1510,22 @@ function app() {
     },
 
     renderCharts() {
-      const days = parseInt(this.chartRange, 10);
+      let days;
+      if (this.chartRange === 'all') {
+        const start = this.profile.dob
+          ? new Date(this.profile.dob).getTime()
+          : (this.records.length ? Math.min(...this.records.map(r => new Date(r.timestamp).getTime())) : Date.now());
+        days = Math.max(1, Math.ceil((Date.now() - start) / 86400000) + 1);
+      } else {
+        days = parseInt(this.chartRange, 10);
+      }
+      const showLabels = days <= 30;
       const isDark = this.theme==='dark';
       const grid = isDark ? '#2c3752' : '#E4DBC8';
       const text = isDark ? '#94a3b8' : '#64748b';
       Chart.defaults.color = text;
       Chart.defaults.borderColor = grid;
       Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif';
-
-      // Debug: chart com dados hardcoded para provar que Chart.js funciona
-      this._chart('chartDebug', {
-        type: 'bar',
-        data: {
-          labels: ['A','B','C','D','E','F','G'],
-          datasets: [{ label:'teste', data:[3,5,2,8,4,6,1], backgroundColor:'#2E9599' }]
-        },
-        options: { maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false } } }
-      });
 
       const dayKeys = [];
       for (let i=days-1; i>=0; i--) {
@@ -1527,6 +1560,8 @@ function app() {
         firstIdx===-1 || i<firstIdx ? null : firstW + (i-firstIdx)*this.settings.min_weight_gain_g_per_day
       );
 
+      const vl = { enabled: showLabels };
+
       this._chart('chartWeight', {
         type: 'line',
         data: {
@@ -1535,21 +1570,21 @@ function app() {
             { label:'Peso (g)', data: weightPerDay,
               borderColor:'#2E9599', backgroundColor:'rgba(168,218,220,.35)',
               tension:0, fill:false, pointRadius:5, pointBackgroundColor:'#2E9599', spanGaps:true },
-            { label:`meta +${this.settings.min_weight_gain_g_per_day}g/dia`, data: metaLine,
+            { label:`meta +${this.settings.min_weight_gain_g_per_day}g/dia`, data: metaLine, skipLabel:true,
               borderColor:'#D26571', borderDash:[5,4], pointRadius:0, fill:false, tension:0, spanGaps:true }
           ]
         },
         options: {
           maintainAspectRatio:false, responsive:true,
           scales:{ x:{ grid:{ color:grid } }, y:{ grid:{ color:grid } } },
-          plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } } }
+          plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } }, valueLabels: vl }
         }
       });
 
       this._chart('chartFeedings', {
         type:'bar',
         data:{ labels, datasets:[{ label:'Mamadas', data:feedingsPerDay, backgroundColor:'#A8DADC' }] },
-        options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{ color:grid } }, y:{ beginAtZero:true, grid:{ color:grid } } } }
+        options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false }, valueLabels: vl }, scales:{ x:{ grid:{ color:grid } }, y:{ beginAtZero:true, grid:{ color:grid } } } }
       });
 
       this._chart('chartDiapers', {
@@ -1558,13 +1593,13 @@ function app() {
           { label:'Molhadas', data:wetPerDay,  backgroundColor:'#7BC7CA' },
           { label:'Cocó',     data:poopPerDay, backgroundColor:'#F1B0B7' }
         ] },
-        options:{ maintainAspectRatio:false, responsive:true, scales:{ x:{ stacked:true, grid:{ color:grid } }, y:{ stacked:true, beginAtZero:true, grid:{ color:grid } } } }
+        options:{ maintainAspectRatio:false, responsive:true, plugins:{ valueLabels: vl }, scales:{ x:{ stacked:true, grid:{ color:grid } }, y:{ stacked:true, beginAtZero:true, grid:{ color:grid } } } }
       });
 
       this._chart('chartSupplement', {
         type:'line',
         data:{ labels, datasets:[{ label:'ml', data:supPerDay, borderColor:'#D26571', backgroundColor:'rgba(241,176,183,.35)', tension:.25, fill:true, pointRadius:3 }] },
-        options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{ color:grid } }, y:{ beginAtZero:true, grid:{ color:grid } } } }
+        options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false }, valueLabels: vl }, scales:{ x:{ grid:{ color:grid } }, y:{ beginAtZero:true, grid:{ color:grid } } } }
       });
 
       this._chart('chartMilk', {
@@ -1572,7 +1607,7 @@ function app() {
         data:{ labels, datasets:[
           { type:'bar',  label:'Extraído', data:extPerDay,  backgroundColor:'#7BC7CA', order:2, yAxisID:'y' },
           { type:'bar',  label:'Usado',    data:usedPerDay, backgroundColor:'#F1B0B7', order:2, yAxisID:'y' },
-          { type:'line', label:'Stock',    data:stockPerDay, borderColor:'#2E9599', backgroundColor:'rgba(46,149,153,.15)', tension:.2, pointRadius:2, order:1, yAxisID:'y1', fill:true }
+          { type:'line', label:'Stock',    data:stockPerDay, borderColor:'#2E9599', backgroundColor:'rgba(46,149,153,.15)', tension:.2, pointRadius:2, order:1, yAxisID:'y1', fill:true, skipLabel:true }
         ] },
         options:{
           maintainAspectRatio:false, responsive:true,
@@ -1581,7 +1616,7 @@ function app() {
             y:{ beginAtZero:true, position:'left',  grid:{ color:grid }, title:{ display:true, text:'ml/dia' } },
             y1:{ position:'right', grid:{ display:false }, title:{ display:true, text:'stock ml' } }
           },
-          plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } } }
+          plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } }, valueLabels: vl }
         }
       });
     },
