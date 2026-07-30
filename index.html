@@ -296,6 +296,13 @@ tailwind.config = {
       <span class="text-slate-400" x-text="'app ' + APP_VERSION"></span>
     </div>
 
+    <!-- Debug: dados fixos para provar que Chart.js funciona -->
+    <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-dashed border-amber-400 dark:border-amber-500/60 mb-3">
+      <div class="text-sm font-medium mb-2 text-amber-800 dark:text-amber-200">🧪 Debug: gráfico de teste (dados fixos)</div>
+      <div class="chart-wrap h-48"><canvas id="chartDebug"></canvas></div>
+      <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Se este aparecer com barras coloridas, o Chart.js está OK no teu telemóvel.</div>
+    </div>
+
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
       <div class="flex items-center justify-between mb-2">
         <div class="text-sm font-medium" x-text="`Peso (g) · ${chartRange} d`"></div>
@@ -874,7 +881,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v5';
+    const CACHE = 'bernardo-v6';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -924,7 +931,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v5';
+const APP_VERSION = 'v6';
 
 function app() {
   return {
@@ -1477,6 +1484,16 @@ function app() {
       Chart.defaults.borderColor = grid;
       Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif';
 
+      // Debug: chart com dados hardcoded para provar que Chart.js funciona
+      this._chart('chartDebug', {
+        type: 'bar',
+        data: {
+          labels: ['A','B','C','D','E','F','G'],
+          datasets: [{ label:'teste', data:[3,5,2,8,4,6,1], backgroundColor:'#2E9599' }]
+        },
+        options: { maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false } } }
+      });
+
       const dayKeys = [];
       for (let i=days-1; i>=0; i--) {
         const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
@@ -1551,6 +1568,7 @@ function app() {
       });
 
       this._chart('chartMilk', {
+        type: 'bar',
         data:{ labels, datasets:[
           { type:'bar',  label:'Extraído', data:extPerDay,  backgroundColor:'#7BC7CA', order:2, yAxisID:'y' },
           { type:'bar',  label:'Usado',    data:usedPerDay, backgroundColor:'#F1B0B7', order:2, yAxisID:'y' },
@@ -1597,17 +1615,7 @@ function app() {
       const el = document.getElementById(id); if (!el) return;
       try {
         if (this._charts[id]) this._charts[id].destroy();
-        // Forçar dimensões explícitas — contorna bug iOS PWA em que o parent
-        // reporta clientWidth=0 no primeiro paint após x-show
-        const wrap = el.parentElement;
-        if (wrap) {
-          const w = wrap.clientWidth || 320;
-          const h = wrap.clientHeight || 200;
-          el.style.width  = w + 'px';
-          el.style.height = h + 'px';
-          el.width  = w;
-          el.height = h;
-        }
+        // Deixa Chart.js gerir dimensões (respeitando devicePixelRatio no iOS)
         this._charts[id] = new Chart(el.getContext('2d'), cfg);
         requestAnimationFrame(() => this._charts[id]?.resize());
       } catch (e) { console.error(`Chart ${id} falhou:`, e); }
