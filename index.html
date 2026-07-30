@@ -56,6 +56,8 @@ tailwind.config = {
   @keyframes fabPop { from { opacity: 0; transform: translateY(10px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
   .star-btn.on { color:#f59e0b; }
   .disclaimer { line-height: 1.35; }
+  .chart-wrap { position: relative; width: 100%; }
+  .chart-wrap > canvas { display: block; }
 </style>
 </head>
 <!--
@@ -274,7 +276,7 @@ tailwind.config = {
       <div class="flex gap-2 flex-1">
         <template x-for="r in ['7','14','30']" :key="r">
           <button class="segbtn btn-tap flex-1 py-2 rounded-xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 text-sm"
-                  :data-active="chartRange===r" @click="chartRange=r; $nextTick(()=>renderCharts())"
+                  :data-active="chartRange===r" @click="chartRange=r"
                   x-text="`${r} dias`"></button>
         </template>
       </div>
@@ -285,34 +287,34 @@ tailwind.config = {
 
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
       <div class="flex items-center justify-between mb-2">
-        <div class="text-sm font-medium">Peso (g)</div>
+        <div class="text-sm font-medium" x-text="`Peso (g) · ${chartRange} d`"></div>
         <div class="text-xs text-slate-500 dark:text-slate-400" x-text="'meta +'+settings.min_weight_gain_g_per_day+' g/dia'"></div>
       </div>
-      <div class="h-56"><canvas id="chartWeight"></canvas></div>
+      <div class="chart-wrap h-56"><canvas id="chartWeight"></canvas></div>
       <div class="text-xs text-slate-500 dark:text-slate-400 mt-2" x-text="`ganho médio: ${avgGainText}`"></div>
     </div>
 
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
-      <div class="text-sm font-medium mb-2">Mamadas por dia (14 d)</div>
-      <div class="h-48"><canvas id="chartFeedings"></canvas></div>
+      <div class="text-sm font-medium mb-2" x-text="`Mamadas por dia (${chartRange} d)`"></div>
+      <div class="chart-wrap h-48"><canvas id="chartFeedings"></canvas></div>
     </div>
 
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
-      <div class="text-sm font-medium mb-2">Fraldas por dia</div>
-      <div class="h-48"><canvas id="chartDiapers"></canvas></div>
+      <div class="text-sm font-medium mb-2" x-text="`Fraldas por dia (${chartRange} d)`"></div>
+      <div class="chart-wrap h-48"><canvas id="chartDiapers"></canvas></div>
     </div>
 
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
-      <div class="text-sm font-medium mb-2">Suplemento (ml) por dia · <span class="text-xs text-slate-500 dark:text-slate-400 font-normal">objetivo: tendência descendente</span></div>
-      <div class="h-48"><canvas id="chartSupplement"></canvas></div>
+      <div class="text-sm font-medium mb-2"><span x-text="`Suplemento (ml) por dia (${chartRange} d)`"></span> · <span class="text-xs text-slate-500 dark:text-slate-400 font-normal">objetivo: tendência descendente</span></div>
+      <div class="chart-wrap h-48"><canvas id="chartSupplement"></canvas></div>
     </div>
 
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
       <div class="flex items-center justify-between mb-2">
-        <div class="text-sm font-medium">Leite materno: extraído vs usado</div>
+        <div class="text-sm font-medium" x-text="`Leite materno: extraído vs usado (${chartRange} d)`"></div>
         <div class="text-xs num-input" :class="milkStock>=0 ? 'text-mint-500 dark:text-mint-200' : 'text-rose-400'" x-text="`stock: ${milkStock>=0?'+':''}${milkStock} ml`"></div>
       </div>
-      <div class="h-56"><canvas id="chartMilk"></canvas></div>
+      <div class="chart-wrap h-56"><canvas id="chartMilk"></canvas></div>
     </div>
 
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
@@ -860,7 +862,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v3';
+    const CACHE = 'bernardo-v4';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
     self.addEventListener('fetch', e => {
@@ -1019,8 +1021,9 @@ function app() {
       this.$watch('records',  v => localStorage.setItem('bernardo_records',  JSON.stringify(v)));
       this.$watch('profile',  v => localStorage.setItem('bernardo_profile',  JSON.stringify(v)));
       this.$watch('settings', v => localStorage.setItem('bernardo_settings', JSON.stringify(v)));
-      this.$watch('tab', v => { if (v==='charts') this.$nextTick(()=>this.renderCharts()); });
-      this.$watch('records', () => { if (this.tab==='charts') this.$nextTick(()=>this.renderCharts()); });
+      this.$watch('tab', v => { if (v==='charts') this.scheduleChartsRender(); });
+      this.$watch('records', () => { if (this.tab==='charts') this.scheduleChartsRender(); });
+      this.$watch('chartRange', () => { if (this.tab==='charts') this.scheduleChartsRender(); });
       this._clockT = setInterval(()=> this._now = Date.now(), 30000);
       if (this.timer.running) this.startTicking();
     },
@@ -1028,7 +1031,7 @@ function app() {
     toggleTheme() {
       this.theme = this.theme==='dark' ? 'light' : 'dark';
       localStorage.setItem('bernardo_theme', this.theme);
-      if (this.tab==='charts') this.$nextTick(()=>this.renderCharts());
+      if (this.tab==='charts') this.scheduleChartsRender();
     },
 
     get ageDays() {
@@ -1532,12 +1535,20 @@ function app() {
         }
       });
     },
+    scheduleChartsRender() {
+      // Duplo rAF + fallback timeout: iOS Safari por vezes ainda não terminou
+      // o layout do container quando o x-show flip acontece
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        this.renderCharts();
+        setTimeout(() => Object.values(this._charts).forEach(c => c?.resize()), 60);
+      }));
+    },
     _chart(id, cfg) {
       const el = document.getElementById(id); if (!el) return;
       try {
         if (this._charts[id]) this._charts[id].destroy();
         this._charts[id] = new Chart(el.getContext('2d'), cfg);
-        setTimeout(() => this._charts[id]?.resize(), 0);
+        requestAnimationFrame(() => this._charts[id]?.resize());
       } catch (e) { console.error(`Chart ${id} falhou:`, e); }
     },
 
