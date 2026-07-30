@@ -881,7 +881,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v6';
+    const CACHE = 'bernardo-v7';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -931,7 +931,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v6';
+const APP_VERSION = 'v7';
 
 function app() {
   return {
@@ -1612,12 +1612,22 @@ function app() {
       }));
     },
     _chart(id, cfg) {
-      const el = document.getElementById(id); if (!el) return;
+      const oldEl = document.getElementById(id); if (!oldEl) return;
       try {
-        if (this._charts[id]) this._charts[id].destroy();
-        // Deixa Chart.js gerir dimensões (respeitando devicePixelRatio no iOS)
-        this._charts[id] = new Chart(el.getContext('2d'), cfg);
-        requestAnimationFrame(() => this._charts[id]?.resize());
+        if (this._charts[id]) { try { this._charts[id].destroy(); } catch(_){} }
+        // Recriar o <canvas> a cada render. iOS Safari WKWebView por vezes
+        // retém o buffer do canvas entre destroys — resultado: eixos
+        // renderizam mas a camada de dados não pinta. Um elemento novo
+        // garante buffer limpo.
+        const parent = oldEl.parentElement;
+        const newEl = document.createElement('canvas');
+        newEl.id = id;
+        parent.replaceChild(newEl, oldEl);
+        // desativar animações — outra fonte de paints incompletos em iOS
+        cfg.options = cfg.options || {};
+        cfg.options.animation = false;
+        this._charts[id] = new Chart(newEl.getContext('2d'), cfg);
+        requestAnimationFrame(() => { try { this._charts[id]?.resize(); } catch(_){} });
       } catch (e) { console.error(`Chart ${id} falhou:`, e); }
     },
 
