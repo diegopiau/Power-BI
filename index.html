@@ -31,7 +31,6 @@ tailwind.config = {
 </script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
   html,body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: contain; }
   body { font-size: 17px; padding-top: env(safe-area-inset-top); }
@@ -861,7 +860,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v2';
+    const CACHE = 'bernardo-v3';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
     self.addEventListener('fetch', e => {
@@ -1021,6 +1020,7 @@ function app() {
       this.$watch('profile',  v => localStorage.setItem('bernardo_profile',  JSON.stringify(v)));
       this.$watch('settings', v => localStorage.setItem('bernardo_settings', JSON.stringify(v)));
       this.$watch('tab', v => { if (v==='charts') this.$nextTick(()=>this.renderCharts()); });
+      this.$watch('records', () => { if (this.tab==='charts') this.$nextTick(()=>this.renderCharts()); });
       this._clockT = setInterval(()=> this._now = Date.now(), 30000);
       if (this.timer.running) this.startTicking();
     },
@@ -1464,27 +1464,32 @@ function app() {
       const stockPerDay = extPerDay.map((ext,i) => (running += ext - usedPerDay[i], running));
 
       const weightsAll = this.records.filter(r => r.type==='weight').sort((a,b) => new Date(a.timestamp)-new Date(b.timestamp));
-      const cutoff = Date.now() - days*86400000;
-      const weights = weightsAll.filter(r => new Date(r.timestamp).getTime() >= cutoff);
-      const targetLine = weights.length
-        ? [{ x: weights[0].timestamp, y: weights[0].data.grams },
-           { x: new Date().toISOString(), y: weights[0].data.grams + this.settings.min_weight_gain_g_per_day * ((Date.now()-new Date(weights[0].timestamp))/86400000) }]
-        : [];
+      const weightPerDay = dayKeys.map(d => {
+        const w = weightsAll.filter(r => new Date(r.timestamp).setHours(0,0,0,0)===d.getTime())
+                            .sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp))[0];
+        return w ? w.data.grams : null;
+      });
+      let firstW = null, firstIdx = -1;
+      weightPerDay.forEach((w,i) => { if (w!==null && firstW===null) { firstW=w; firstIdx=i; } });
+      const metaLine = weightPerDay.map((_,i) =>
+        firstIdx===-1 || i<firstIdx ? null : firstW + (i-firstIdx)*this.settings.min_weight_gain_g_per_day
+      );
 
       this._chart('chartWeight', {
         type: 'line',
         data: {
+          labels,
           datasets: [
-            { label:'Peso (g)', data: weights.map(r => ({ x:r.timestamp, y:r.data.grams })),
+            { label:'Peso (g)', data: weightPerDay,
               borderColor:'#2E9599', backgroundColor:'rgba(168,218,220,.35)',
-              tension:.25, fill:true, pointRadius:4, pointBackgroundColor:'#2E9599' },
-            { label:`meta +${this.settings.min_weight_gain_g_per_day}g/dia`, data: targetLine,
-              borderColor:'#D26571', borderDash:[5,4], pointRadius:0, fill:false, tension:0 }
+              tension:0, fill:false, pointRadius:5, pointBackgroundColor:'#2E9599', spanGaps:true },
+            { label:`meta +${this.settings.min_weight_gain_g_per_day}g/dia`, data: metaLine,
+              borderColor:'#D26571', borderDash:[5,4], pointRadius:0, fill:false, tension:0, spanGaps:true }
           ]
         },
         options: {
           maintainAspectRatio:false, responsive:true,
-          scales:{ x:{ type:'time', time:{ unit: days>14?'week':'day', tooltipFormat:'dd/MM' }, grid:{ color:grid } }, y:{ grid:{ color:grid } } },
+          scales:{ x:{ grid:{ color:grid } }, y:{ grid:{ color:grid } } },
           plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } } }
         }
       });
@@ -1529,8 +1534,11 @@ function app() {
     },
     _chart(id, cfg) {
       const el = document.getElementById(id); if (!el) return;
-      if (this._charts[id]) this._charts[id].destroy();
-      this._charts[id] = new Chart(el.getContext('2d'), cfg);
+      try {
+        if (this._charts[id]) this._charts[id].destroy();
+        this._charts[id] = new Chart(el.getContext('2d'), cfg);
+        setTimeout(() => this._charts[id]?.resize(), 0);
+      } catch (e) { console.error(`Chart ${id} falhou:`, e); }
     },
 
     get heatmap() {
