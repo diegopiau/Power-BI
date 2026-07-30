@@ -285,6 +285,17 @@ tailwind.config = {
       </button>
     </div>
 
+    <!-- Barra de diagnóstico -->
+    <div class="mb-3 px-3 py-2 rounded-xl bg-mint-100 dark:bg-night-1 border border-mint-200/60 dark:border-night-2 text-[11px] text-slate-600 dark:text-slate-400 num-input flex items-center justify-between flex-wrap gap-1">
+      <span>
+        🤱 <b x-text="countByType.feeding"></b> ·
+        💧 <b x-text="countByType.diaper"></b> ·
+        ⚖️ <b x-text="countByType.weight"></b> ·
+        🍼 <b x-text="countByType.pumping"></b>
+      </span>
+      <span class="text-slate-400" x-text="'app ' + APP_VERSION"></span>
+    </div>
+
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
       <div class="flex items-center justify-between mb-2">
         <div class="text-sm font-medium" x-text="`Peso (g) · ${chartRange} d`"></div>
@@ -831,10 +842,11 @@ tailwind.config = {
                   ⬆️ Restaurar
                   <input type="file" accept="application/json" class="hidden" @change="importData($event)">
                 </label>
+                <button class="btn-tap col-span-2 py-3 rounded-xl bg-amber-200 dark:bg-amber-500/30 text-sm font-medium" @click="hardReload()">🔄 Atualizar app (limpar cache)</button>
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-rose-200 dark:bg-rose-400/30 text-sm font-medium" @click="clearAll()">🗑️ Apagar tudo (duplo)</button>
               </div>
-              <div class="mt-3 text-xs text-slate-500 dark:text-slate-400 text-center">
-                <span x-text="records.length"></span> registos guardados neste dispositivo.
+              <div class="mt-3 text-xs text-slate-500 dark:text-slate-400 text-center num-input">
+                <span x-text="records.length"></span> registos · app <span x-text="APP_VERSION"></span>
               </div>
             </div>
           </div>
@@ -862,24 +874,41 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v4';
+    const CACHE = 'bernardo-v5';
     self.addEventListener('install', e => self.skipWaiting());
-    self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+    self.addEventListener('activate', e => e.waitUntil((async () => {
+      // Limpar caches antigos ao ativar nova versão
+      const keys = await caches.keys();
+      await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
+      await self.clients.claim();
+    })()));
     self.addEventListener('fetch', e => {
       const req = e.request;
       if (req.method !== 'GET') return;
-      e.respondWith(
-        caches.open(CACHE).then(async cache => {
-          const cached = await cache.match(req);
-          const fetched = fetch(req).then(res => {
+      const isHTML = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
+      if (isHTML) {
+        // Network-first para HTML — sempre que houver rede, buscar fresco
+        e.respondWith(
+          fetch(req).then(res => {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(req, clone)).catch(()=>{});
+            return res;
+          }).catch(() => caches.match(req))
+        );
+      } else {
+        // Cache-first para assets estáticos (Tailwind, Alpine, Chart.js)
+        e.respondWith(
+          caches.open(CACHE).then(async cache => {
+            const cached = await cache.match(req);
+            if (cached) return cached;
+            const res = await fetch(req);
             if (res && res.status === 200 && req.url.startsWith('http')) {
               try { cache.put(req, res.clone()); } catch(_){}
             }
             return res;
-          }).catch(() => cached);
-          return cached || fetched;
-        })
-      );
+          })
+        );
+      }
     });
   `;
   const blob = new Blob([swCode], { type: 'application/javascript' });
@@ -895,8 +924,11 @@ function uuid() {
     });
 }
 
+const APP_VERSION = 'v5';
+
 function app() {
   return {
+    APP_VERSION,
     theme: 'light',
     tab: 'today',
     tabs: [
@@ -1535,6 +1567,24 @@ function app() {
         }
       });
     },
+    get countByType() {
+      const o = { feeding:0, diaper:0, weight:0, pumping:0, promil:0, colic:0, note:0 };
+      for (const r of this.records) if (o[r.type] !== undefined) o[r.type]++;
+      return o;
+    },
+    async hardReload() {
+      try {
+        if (navigator.serviceWorker) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+        if (window.caches) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+      } catch(e) { console.error('hardReload:', e); }
+      location.reload();
+    },
     scheduleChartsRender() {
       // Duplo rAF + fallback timeout: iOS Safari por vezes ainda não terminou
       // o layout do container quando o x-show flip acontece
@@ -1547,6 +1597,17 @@ function app() {
       const el = document.getElementById(id); if (!el) return;
       try {
         if (this._charts[id]) this._charts[id].destroy();
+        // Forçar dimensões explícitas — contorna bug iOS PWA em que o parent
+        // reporta clientWidth=0 no primeiro paint após x-show
+        const wrap = el.parentElement;
+        if (wrap) {
+          const w = wrap.clientWidth || 320;
+          const h = wrap.clientHeight || 200;
+          el.style.width  = w + 'px';
+          el.style.height = h + 'px';
+          el.width  = w;
+          el.height = h;
+        }
         this._charts[id] = new Chart(el.getContext('2d'), cfg);
         requestAnimationFrame(() => this._charts[id]?.resize());
       } catch (e) { console.error(`Chart ${id} falhou:`, e); }
