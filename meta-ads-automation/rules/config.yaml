@@ -1,0 +1,21 @@
+# Thresholds for the ESCALAR / MANTER / MATAR classifier.
+# Tune these to your funnel — the defaults are conservative.
+
+min_spend_to_judge: 50.0     # BRL; below this the ad is still LEARNING
+target_cpa: 30.0             # your target cost per purchase (BRL)
+
+roas:
+  escalar: 2.5
+  matar: 1.0
+
+cpa_ratio:      # actual CPA / target CPA
+  escalar: 0.8
+  matar: 1.5
+
+ctr:            # link CTR (%)
+  escalar: 1.5
+  matar: 0.5
+
+frequency:
+  escalar_max: 2.5
+  matar_min: 4.0
