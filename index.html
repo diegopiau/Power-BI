@@ -253,13 +253,16 @@ tailwind.config = {
     </div>
     <div class="space-y-2">
       <template x-for="r in recentRecords" :key="r.id">
-        <div class="p-3 rounded-xl bg-white dark:bg-night-1 border border-mint-200/50 dark:border-night-2 flex items-start gap-3">
+        <div class="p-3 rounded-xl bg-white dark:bg-night-1 border border-mint-200/50 dark:border-night-2 flex items-start gap-3" @click="editRecord(r)">
           <div class="text-2xl leading-none pt-0.5" x-text="icon(r.type)"></div>
           <div class="flex-1 min-w-0">
             <div class="text-sm font-medium" x-text="describe(r)"></div>
             <div class="text-xs text-slate-500 dark:text-slate-400 num-input" x-text="timeAgo(r.timestamp) + ' · ' + fmtTime(r.timestamp)"></div>
           </div>
-          <button class="btn-tap text-slate-400 hover:text-rose-400 p-1" @click="deleteRecord(r.id)" aria-label="Apagar">
+          <button class="btn-tap text-mint-500 dark:text-mint-200 p-1" @click.stop="editRecord(r)" aria-label="Editar">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6.586-6.586a2 2 0 1 1 2.828 2.828L11.828 13.828 9 14l.172-2.828z M4 20h16"/></svg>
+          </button>
+          <button class="btn-tap text-slate-400 hover:text-rose-400 dark:hover:text-rose-300 p-1" @click.stop="deleteRecord(r.id)" aria-label="Apagar">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M7 7l1 12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-12"/></svg>
           </button>
         </div>
@@ -377,7 +380,10 @@ tailwind.config = {
                 <div class="text-sm font-medium" x-text="describe(r)"></div>
                 <div class="text-xs text-slate-500 dark:text-slate-400 num-input" x-text="fmtTime(r.timestamp)"></div>
               </div>
-              <button class="btn-tap text-slate-400 hover:text-rose-400 p-1" @click.stop="deleteRecord(r.id)">
+              <button class="btn-tap text-mint-500 dark:text-mint-200 p-1" @click.stop="editRecord(r)" aria-label="Editar">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6.586-6.586a2 2 0 1 1 2.828 2.828L11.828 13.828 9 14l.172-2.828z M4 20h16"/></svg>
+              </button>
+              <button class="btn-tap text-slate-400 hover:text-rose-400 dark:hover:text-rose-300 p-1" @click.stop="deleteRecord(r.id)" aria-label="Apagar">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M7 7l1 12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-12"/></svg>
               </button>
             </div>
@@ -575,24 +581,53 @@ tailwind.config = {
             </template>
 
             <template x-if="form.method==='tetina' || form.method==='misto'">
-              <div>
-                <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Suplemento (ml)</label>
-                <div class="flex items-center gap-2">
-                  <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml=Math.max(0,(form.ml||0)-5)">−</button>
-                  <input type="number" inputmode="numeric" class="flex-1 p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-lg" x-model.number="form.ml">
-                  <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml=(form.ml||0)+5">+</button>
-                </div>
-                <button class="btn-tap mt-2 w-full py-2 rounded-xl bg-mint-100 dark:bg-night-2 text-sm" @click="form.ml=supplementPerMeal">
-                  Usar sugestão: <b x-text="supplementPerMeal"></b> ml
-                </button>
+              <div class="space-y-3">
                 <div>
-                  <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-3 mb-1">Fonte do leite</label>
-                  <div class="grid grid-cols-2 gap-2">
-                    <template x-for="s in [{v:'materno',l:'Materno'},{v:'formula',l:'Fórmula'}]" :key="s.v">
+                  <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Fonte do leite</label>
+                  <div class="grid grid-cols-3 gap-2">
+                    <template x-for="s in [{v:'materno',l:'Materno'},{v:'formula',l:'Fórmula'},{v:'misto',l:'Misto'}]" :key="s.v">
                       <button class="btn-tap py-2 rounded-xl segbtn text-sm" :data-active="form.source===s.v" @click="form.source=s.v" x-text="s.l"></button>
                     </template>
                   </div>
                 </div>
+
+                <template x-if="form.source==='misto'">
+                  <div class="space-y-2">
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Materno (ml)</label>
+                      <div class="flex items-center gap-2">
+                        <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml_materno=Math.max(0,(form.ml_materno||0)-5)">−</button>
+                        <input type="number" inputmode="numeric" class="flex-1 p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-lg" x-model.number="form.ml_materno">
+                        <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml_materno=(form.ml_materno||0)+5">+</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Fórmula (ml)</label>
+                      <div class="flex items-center gap-2">
+                        <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml_formula=Math.max(0,(form.ml_formula||0)-5)">−</button>
+                        <input type="number" inputmode="numeric" class="flex-1 p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-lg" x-model.number="form.ml_formula">
+                        <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml_formula=(form.ml_formula||0)+5">+</button>
+                      </div>
+                    </div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400 text-center num-input">
+                      Total: <b x-text="(form.ml_materno||0)+(form.ml_formula||0)"></b> ml
+                    </div>
+                  </div>
+                </template>
+
+                <template x-if="form.source==='materno' || form.source==='formula'">
+                  <div>
+                    <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1" x-text="form.source==='materno' ? 'Materno (ml)' : 'Fórmula (ml)'"></label>
+                    <div class="flex items-center gap-2">
+                      <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml=Math.max(0,(form.ml||0)-5)">−</button>
+                      <input type="number" inputmode="numeric" class="flex-1 p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-lg" x-model.number="form.ml">
+                      <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.ml=(form.ml||0)+5">+</button>
+                    </div>
+                    <button class="btn-tap mt-2 w-full py-2 rounded-xl bg-mint-100 dark:bg-night-2 text-sm" @click="form.ml=supplementPerMeal">
+                      Usar sugestão: <b x-text="supplementPerMeal"></b> ml
+                    </button>
+                  </div>
+                </template>
               </div>
             </template>
 
@@ -875,7 +910,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v9';
+    const CACHE = 'bernardo-v10';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -925,7 +960,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v9';
+const APP_VERSION = 'v10';
 
 // Plugin inline para desenhar rótulos de valor nas barras/linhas.
 // Ativado por chart via options.plugins.valueLabels = { enabled: true, color, stack }.
@@ -1199,18 +1234,26 @@ function app() {
       const w = this.lastWeight?.data?.grams || this.profile.birth_weight_g;
       return w ? Math.round((w/1000) * this.settings.supplement_formula_ml_per_kg) : 0;
     },
+    // ml de leite materno consumido nesta refeição (0 se fórmula pura)
+    maternoMlOf(r) {
+      if (r.type !== 'feeding') return 0;
+      const d = r.data || {};
+      if (d.source === 'materno') return Number(d.ml) || 0;
+      if (d.source === 'misto')   return Number(d.ml_materno) || 0;
+      return 0;
+    },
     get todayExtracted() {
       return this.todayRecords.filter(r => r.type==='pumping').reduce((s,r) => s + (Number(r.data.ml)||0), 0);
     },
     get todayMaternoUsed() {
-      return this.todayRecords.filter(r => r.type==='feeding' && r.data.source==='materno').reduce((s,r) => s + (Number(r.data.ml)||0), 0);
+      return this.todayRecords.reduce((s,r) => s + this.maternoMlOf(r), 0);
     },
     get todayMilkBalance() { return this.todayExtracted - this.todayMaternoUsed; },
     get milkStock() {
       let n = 0;
       for (const r of this.records) {
         if (r.type==='pumping') n += Number(r.data.ml)||0;
-        else if (r.type==='feeding' && r.data.source==='materno') n -= Number(r.data.ml)||0;
+        else n -= this.maternoMlOf(r);
       }
       return n;
     },
@@ -1316,7 +1359,14 @@ function app() {
           else if (d.method==='misto') p.push('Misto');
           if ((d.method==='mama'||d.method==='misto') && d.side) p.push(({E:'E',D:'D',ambos:'E+D'})[d.side]);
           if ((d.method==='mama'||d.method==='misto') && d.duration_min) p.push(`${d.duration_min} min`);
-          if ((d.method==='tetina'||d.method==='misto') && d.ml) p.push(`${d.ml} ml${d.source==='formula'?' fórm.':' mat.'}`);
+          if (d.method==='tetina'||d.method==='misto') {
+            if (d.source==='misto') {
+              const mm = Number(d.ml_materno)||0, mf = Number(d.ml_formula)||0;
+              if (mm||mf) p.push(`${mm+mf} ml (${mm} mat + ${mf} fórm)`);
+            } else if (d.ml) {
+              p.push(`${d.ml} ml ${d.source==='formula'?'fórm.':'mat.'}`);
+            }
+          }
           if (d.notes_chips?.length) p.push(d.notes_chips.join(', '));
           if (d.notes) p.push(`— ${d.notes}`);
           return p.join(' · ');
@@ -1359,7 +1409,7 @@ function app() {
     defaultForm(kind) {
       const base = { whenChoice:'now', timestamp:'' };
       switch (kind) {
-        case 'feeding': return { ...base, method:'mama', side:'E', duration_min:15, ml:0, source:'materno', notes_chips:[], notes:'' };
+        case 'feeding': return { ...base, method:'mama', side:'E', duration_min:15, ml:0, ml_materno:0, ml_formula:0, source:'materno', notes_chips:[], notes:'' };
         case 'diaper':  return { ...base, diaperKind:'wet', urine_color:'clara', poop_desc:'', poop_color:'' };
         case 'weight':  return { ...base, grams: this.lastWeight?.data?.grams || this.profile.birth_weight_g || 0, notes:'' };
         case 'pumping': return { ...base, ml:0, side:'ambos', duration_min:12 };
@@ -1387,6 +1437,10 @@ function app() {
       if (this.sheet==='feeding' && this.timer.running) this.stopTimer();
       if (this.sheet==='feeding' && this.timer.elapsed > 0 && !this.form.duration_min) {
         this.form.duration_min = Math.round(this.timer.elapsed/60);
+      }
+      // Se misto, o total (ml) passa a ser materno + fórmula
+      if (this.sheet==='feeding' && this.form.source==='misto') {
+        this.form.ml = (Number(this.form.ml_materno)||0) + (Number(this.form.ml_formula)||0);
       }
       const { whenChoice, timestamp, ...data } = this.form;
       const ts = this.computeTimestamp();
@@ -1538,12 +1592,12 @@ function app() {
       const poopPerDay = dayKeys.map(d => this.records.filter(r => r.type==='diaper' && (r.data.diaperKind==='poop' || r.data.diaperKind==='both') && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).length);
       const supPerDay  = dayKeys.map(d => this.records.filter(r => r.type==='feeding' && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).reduce((s,r) => s + (Number(r.data.ml)||0), 0));
       const extPerDay  = dayKeys.map(d => this.records.filter(r => r.type==='pumping' && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).reduce((s,r) => s + (Number(r.data.ml)||0), 0));
-      const usedPerDay = dayKeys.map(d => this.records.filter(r => r.type==='feeding' && r.data.source==='materno' && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).reduce((s,r) => s + (Number(r.data.ml)||0), 0));
+      const usedPerDay = dayKeys.map(d => this.records.filter(r => r.type==='feeding' && new Date(r.timestamp).setHours(0,0,0,0)===d.getTime()).reduce((s,r) => s + this.maternoMlOf(r), 0));
       let running = 0;
       for (const r of this.records) {
         if (new Date(r.timestamp).getTime() >= dayKeys[0].getTime()) continue;
         if (r.type==='pumping') running += Number(r.data.ml)||0;
-        else if (r.type==='feeding' && r.data.source==='materno') running -= Number(r.data.ml)||0;
+        else running -= this.maternoMlOf(r);
       }
       const stockPerDay = extPerDay.map((ext,i) => (running += ext - usedPerDay[i], running));
 
