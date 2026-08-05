@@ -184,7 +184,7 @@ tailwind.config = {
     </div>
 
     <!-- 2 botões gigantes -->
-    <div class="grid grid-cols-2 gap-3 mb-4">
+    <div class="grid grid-cols-2 gap-3 mb-3">
       <button class="btn-tap py-6 rounded-3xl bg-mint-300 hover:bg-mint-400 dark:bg-mint-500 text-slate-900 dark:text-slate-950 shadow-md" @click="openSheet('feeding')">
         <div class="text-5xl leading-none">🤱</div>
         <div class="mt-2 font-semibold text-lg">Nova mamada</div>
@@ -194,6 +194,16 @@ tailwind.config = {
         <div class="mt-2 font-semibold text-lg">Nova fralda</div>
       </button>
     </div>
+
+    <!-- Assistente do choro -->
+    <button class="btn-tap w-full p-4 rounded-2xl bg-white dark:bg-night-1 border-2 border-amber-300 dark:border-amber-500/60 text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-3 shadow-sm" @click="openSheet('cry')">
+      <div class="text-4xl leading-none">😢</div>
+      <div class="text-left flex-1">
+        <div class="font-semibold">Está a chorar?</div>
+        <div class="text-xs text-slate-500 dark:text-slate-400">Ajuda-me a perceber o motivo</div>
+      </div>
+      <div class="text-amber-500 dark:text-amber-300">›</div>
+    </button>
 
     <!-- Suplemento sugerido -->
     <div class="p-4 rounded-2xl bg-mint-100 dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-6" x-show="lastWeight || profile.birth_weight_g">
@@ -807,6 +817,46 @@ tailwind.config = {
           </div>
         </template>
 
+        <!-- CRY assistant -->
+        <template x-if="sheet==='cry'">
+          <div class="space-y-3">
+            <div class="p-3 rounded-xl bg-mint-100 dark:bg-night-2 text-xs text-slate-600 dark:text-slate-300">
+              Baseado no histórico do Bernardo, estas são as causas mais prováveis do choro <b>agora</b>. Toca em cada uma para ver o que fazer. É orientativo — não substitui avaliação clínica.
+            </div>
+
+            <template x-for="c in cryCache" :key="c.id">
+              <div class="rounded-xl border border-mint-200/60 dark:border-night-2 bg-white dark:bg-night-2 overflow-hidden">
+                <button class="w-full flex items-center gap-3 p-3 text-left btn-tap" @click="c.open = !c.open">
+                  <div class="text-2xl leading-none" x-text="c.icon"></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-semibold" x-text="c.title"></div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400" x-text="c.reason"></div>
+                  </div>
+                  <div class="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                       :class="c.score>=70 ? 'bg-mint-200 dark:bg-mint-500/40 text-mint-500 dark:text-mint-100'
+                             : c.score>=45 ? 'bg-amber-100 dark:bg-amber-400/25 text-amber-800 dark:text-amber-100'
+                             :               'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'"
+                       x-text="c.scoreLabel"></div>
+                </button>
+                <div x-show="c.open" class="px-4 pb-3 text-sm text-slate-700 dark:text-slate-200 space-y-1.5">
+                  <template x-for="(t,i) in c.tips" :key="i">
+                    <div class="flex gap-2"><span class="text-mint-500 dark:text-mint-200 shrink-0">•</span><span x-text="t"></span></div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <div class="grid grid-cols-2 gap-2 pt-2">
+              <button class="btn-tap py-3 rounded-xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-medium text-sm" @click="closeSheet(); openSheet('feeding')">🤱 Dar mamada</button>
+              <button class="btn-tap py-3 rounded-xl bg-rose-200 dark:bg-rose-400/60 text-slate-900 dark:text-white font-medium text-sm" @click="closeSheet(); openSheet('colic')">😣 Registar cólica</button>
+            </div>
+
+            <div class="p-3 rounded-xl bg-rose-100 dark:bg-rose-400/15 border border-rose-200/60 dark:border-rose-400/30 text-xs text-rose-400 dark:text-rose-200 leading-relaxed">
+              ⚠️ <b>Sinais de alarme</b> — SNS 24 (808 24 24 24) ou urgência: choro inconsolável &gt;2h, febre ≥38°C rectal (&lt;3 meses), letargia, recusa alimentar, dificuldade respiratória, cianose, convulsão, fontanela abaulada/afundada, vómito em jato, sangue nas fezes.
+            </div>
+          </div>
+        </template>
+
         <!-- SETTINGS -->
         <template x-if="sheet==='settings'">
           <div class="space-y-5">
@@ -893,7 +943,10 @@ tailwind.config = {
         <template x-if="sheet==='settings'">
           <button class="btn-tap w-full py-4 rounded-2xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold text-lg" @click="saveSettings()">Guardar</button>
         </template>
-        <template x-if="sheet!=='settings'">
+        <template x-if="sheet==='cry'">
+          <button class="btn-tap w-full py-4 rounded-2xl bg-slate-200 dark:bg-night-2 text-slate-900 dark:text-slate-100 font-semibold text-lg" @click="closeSheet()">Fechar</button>
+        </template>
+        <template x-if="!['settings','cry'].includes(sheet)">
           <button class="btn-tap w-full py-4 rounded-2xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold text-lg" @click="saveRecord()" x-text="editing ? 'Guardar alterações' : 'Guardar registo'"></button>
         </template>
       </div>
@@ -910,7 +963,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v10';
+    const CACHE = 'bernardo-v11';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -960,7 +1013,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v10';
+const APP_VERSION = 'v11';
 
 // Plugin inline para desenhar rótulos de valor nas barras/linhas.
 // Ativado por chart via options.plugins.valueLabels = { enabled: true, color, stack }.
@@ -1007,6 +1060,7 @@ function app() {
     guideTab: 'age',
     sheet: null, sheetTitle: '',
     editing: null,
+    cryCache: [],
     fabOpen: false,
     fabItems: [
       { k:'weight',  label:'Peso',      icon:'⚖️' },
@@ -1110,7 +1164,36 @@ function app() {
       { id:'iodo', icon:'⚠️', open:true, title:'ATENÇÃO: fórmula SEM iodo', body:`
         <p class="text-rose-400 dark:text-rose-300 font-semibold">Escolher sempre suplemento alimentar <b>SEM iodo adicional</b>.</p>
         <p>A mãe tem Hashimoto — iodo adicional na fórmula pode interferir com a função tiroideia (dela e do bebé, via leite materno).</p>
-        <p>Confirmar sempre o rótulo e validar com pediatra/endocrinologia.</p>` }
+        <p>Confirmar sempre o rótulo e validar com pediatra/endocrinologia.</p>` },
+      { id:'dunstan', icon:'👂', open:false, title:'Dunstan Baby Language (5 sons)', body:`
+        <p>Sons-reflexo universais até aos ~3 meses. Escutar antes do choro instalar.</p>
+        <table class="w-full text-xs">
+          <thead><tr class="text-left border-b border-mint-200/60 dark:border-night-2"><th class="py-1 pr-2">Som</th><th class="py-1 pr-2">Significa</th><th class="py-1">Ação</th></tr></thead>
+          <tbody class="align-top">
+            <tr><td class="py-1 pr-2"><b>Neh</b></td><td class="py-1 pr-2">Fome (reflexo de sucção)</td><td class="py-1">Oferecer mama/tetina</td></tr>
+            <tr><td class="py-1 pr-2"><b>Owh</b></td><td class="py-1 pr-2">Sono (bocejo reflexo)</td><td class="py-1">Enrolar, ambiente calmo</td></tr>
+            <tr><td class="py-1 pr-2"><b>Heh</b></td><td class="py-1 pr-2">Desconforto físico</td><td class="py-1">Trocar fralda, ajustar roupa/posição</td></tr>
+            <tr><td class="py-1 pr-2"><b>Eh</b></td><td class="py-1 pr-2">Arroto pendente (ar no esófago)</td><td class="py-1">Posição vertical, palmadinhas</td></tr>
+            <tr><td class="py-1 pr-2"><b>Eairh</b></td><td class="py-1 pr-2">Gases na barriga</td><td class="py-1">Bicicleta, massagem conchinha</td></tr>
+          </tbody>
+        </table>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2">Nota: evidência científica é modesta. Serve como pista adicional, não diagnóstico.</p>` },
+      { id:'alarme', icon:'🚨', open:false, title:'Sinais de alarme (SNS 24 / urgência)', body:`
+        <p class="text-rose-400 dark:text-rose-300 font-semibold">Contactar imediatamente SNS 24 (808 24 24 24) ou ir à urgência se:</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li><b>Febre</b> ≥38°C rectal em bebé &lt;3 meses (mesmo sem outros sintomas).</li>
+          <li><b>Letargia</b> — muito difícil de acordar, resposta fraca.</li>
+          <li><b>Recusa alimentar</b> repetida em várias mamadas.</li>
+          <li><b>Choro inconsolável</b> por &gt;2 horas sem alívio.</li>
+          <li><b>Respiração difícil</b> — tiragem, adejo nasal, gemido, &gt;60 rpm em repouso.</li>
+          <li><b>Cianose</b> (lábios/língua/dedos azulados).</li>
+          <li><b>Convulsão</b> ou movimentos anormais.</li>
+          <li><b>Fontanela</b> abaulada (afundada = desidratação) ou muito tensa.</li>
+          <li><b>Vómito em jato</b> repetido, ou com sangue/bílis (verde).</li>
+          <li><b>Sangue nas fezes</b> ou fezes muito escuras/pretas.</li>
+          <li>Menos de <b>6 fraldas molhadas</b> em 24h → risco de desidratação.</li>
+          <li><b>Perda de peso</b> &gt;10% do peso ao nascer, ou não recuperação até aos 15 dias.</li>
+        </ul>` }
     ],
 
     init() {
@@ -1395,9 +1478,15 @@ function app() {
       this.editing = existing || null;
       this.sheetTitle = {
         feeding:'Mamada', diaper:'Fralda', weight:'Peso', pumping:'Extração',
-        promil:'Promil', colic:'Cólica', note:'Nota', settings:'Definições'
+        promil:'Promil', colic:'Cólica', note:'Nota', settings:'Definições',
+        cry:'Motivo do choro'
       }[kind] || '';
-      this.form = existing ? this.recordToForm(existing) : this.defaultForm(kind);
+      if (kind === 'cry') {
+        this.cryCache = this.analyzeCry();
+        this.form = {};
+      } else {
+        this.form = existing ? this.recordToForm(existing) : this.defaultForm(kind);
+      }
     },
     closeSheet() { this.sheet = null; this.editing = null; },
     setWhen(choice) {
@@ -1673,6 +1762,171 @@ function app() {
         }
       });
     },
+    fmtMinutes(m) {
+      if (m == null) return '—';
+      if (m < 60) return `${m} min`;
+      const h = Math.floor(m/60), r = m%60;
+      return r ? `${h}h${String(r).padStart(2,'0')}` : `${h}h`;
+    },
+
+    // Analisador de choro — combina contexto do histórico com heurísticas
+    // baseadas em orientações pediátricas (AAP, La Leche League, NHS, WHO,
+    // Dunstan Baby Language) para sugerir causas prováveis + dicas de ação.
+    analyzeCry() {
+      const now = this._now;
+      const bySince = (arr) => arr[0] ? Math.round((now - new Date(arr[0].timestamp).getTime())/60000) : null;
+      const sortDesc = (arr) => arr.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+      const feeds = sortDesc(this.records.filter(r => r.type==='feeding'));
+      const wets  = sortDesc(this.records.filter(r => r.type==='diaper' && (r.data.diaperKind==='wet'  || r.data.diaperKind==='both')));
+      const poops = sortDesc(this.records.filter(r => r.type==='diaper' && (r.data.diaperKind==='poop' || r.data.diaperKind==='both')));
+      const colics = sortDesc(this.records.filter(r => r.type==='colic'));
+      const mFeed  = bySince(feeds);
+      const mWet   = bySince(wets);
+      const mPoop  = bySince(poops);
+      const mColic = bySince(colics);
+      const hour = new Date(now).getHours();
+      const targetGap = Math.round(24*60 / (this.settings.target_feedings_per_day || 10));
+
+      const list = [];
+
+      // ---------- FOME ----------
+      if (mFeed === null || mFeed >= targetGap * 0.75) {
+        let score = mFeed === null ? 70 : 40 + Math.min(50, (mFeed - targetGap*0.75) * 0.6);
+        list.push({
+          id:'fome', title:'Fome', icon:'🍼', score: Math.round(score),
+          reason: mFeed === null ? 'Sem mamada registada' : `Última mamada há ${this.fmtMinutes(mFeed)} (meta ≈ ${targetGap} min)`,
+          tips: [
+            'Oferecer o peito primeiro (2–3 min de estimulação); em prematuro tardio, estimular pé/orelha/queixo se adormecer.',
+            'Se recusar mama, tentar tetina em paced feeding — biberão a 45°, tetina sempre cheia de leite, pausas a cada 10 sucções.',
+            'Atender aos sinais precoces (mãos à boca, virar cabeça) antes do choro instalar — a pega é melhor.',
+            'Bebés prematuros mamam menos e mais vezes: 8–12/dia até termo corrigido é normal.',
+            'Se a mamada anterior foi curta ou muito pausada, pode estar apenas a completar — permitir cluster feeding.'
+          ]
+        });
+      }
+
+      // ---------- FRALDA / DESCONFORTO ----------
+      if (mWet === null || mWet >= 120) {
+        let score = 45 + (mWet === null ? 15 : Math.min(30, (mWet - 120) * 0.25));
+        list.push({
+          id:'fralda', title:'Fralda ou desconforto', icon:'💧', score: Math.round(score),
+          reason: mWet === null ? 'Sem fralda molhada registada' : `Última molhada há ${this.fmtMinutes(mWet)}`,
+          tips: [
+            'Trocar a fralda mesmo que pareça só levemente húmida — a acidez irrita rapidamente.',
+            'Limpar com água morna e algodão; evitar toalhitas com álcool/perfume, sobretudo se irritado.',
+            'Aplicar creme protetor (zinco) se área estiver vermelha; deixar ao ar 5 min quando possível.',
+            'Verificar sempre dedos/mãos/pés/genitais — cabelo enrolado (hair tourniquet) é raro mas urgente.',
+            'Verificar se a roupa não tem etiquetas a picar ou elásticos apertados.'
+          ]
+        });
+      }
+
+      // ---------- CÓLICA / GASES ----------
+      {
+        let score = 25;
+        const parts = [];
+        if (hour >= 16 && hour <= 22) { score += 25; parts.push('fim de tarde/noite (típico de cólica)'); }
+        if (mPoop === null || mPoop >= 24*60) { score += 20; parts.push('sem cocó há >24h'); }
+        else if (mPoop >= 18*60) { score += 10; parts.push('sem cocó há >18h'); }
+        if (mColic !== null && mColic < 24*60) { score += 15; parts.push('já teve cólica hoje/ontem'); }
+        if (mFeed !== null && mFeed < 60 && mFeed > 20) { score += 10; parts.push('pós-mamada'); }
+        if (score >= 40) list.push({
+          id:'colica', title:'Cólica / gases', icon:'😣', score: Math.round(score),
+          reason: parts.join(' · ') || 'padrão típico',
+          tips: [
+            'Massagem da conchinha: mãos em concha, círculos horários na barriga (segue o cólon).',
+            '"Bicicleta" com as pernas + joelhos ao peito — 2–3 séries de 1 min.',
+            'Posição anti-cólica: barriga sobre o teu antebraço, cabeça na mão (football hold), palmadinhas suaves nas costas.',
+            'Pele-com-pele ou babywearing — regula o sistema nervoso e ajuda a libertar gases.',
+            'Compressa morna (nunca quente — testar no antebraço) na barriga por 5 min.',
+            'Simeticona ou probióticos só com indicação do pediatra — evidência é limitada.',
+            'Regra dos 3: se >3h/dia, >3d/semana, >3 semanas → falar com pediatra.'
+          ]
+        });
+      }
+
+      // ---------- ARROTO PENDENTE ----------
+      if (mFeed !== null && mFeed <= 30) {
+        list.push({
+          id:'arroto', title:'Arroto pendente', icon:'💨', score: 65,
+          reason: `Mamou há ${mFeed} min — comum ficar irritado até arrotar`,
+          tips: [
+            'Sentar direito, apoiar o queixo com o teu polegar/indicador, palmadinhas firmes de baixo para cima.',
+            'Posição "por cima do ombro": barriga contra o teu peito, cabeça acima do ombro; pressão suave na barriga ajuda.',
+            'Se não arrota em 3–5 min, mudar de posição e tentar mais 3–5 min.',
+            'Nem todo o bebé arrota sempre — se está confortável, aceitar.',
+            'Se regurgita muito, elevar mais a cabeceira do berço (nunca almofada) e manter vertical 20–30 min pós-mamada.'
+          ]
+        });
+      }
+
+      // ---------- CANSAÇO / SONO ----------
+      // Prematuro tardio: janela de vigília saudável ≈ 45–90 min
+      if (mFeed !== null && mFeed >= 45) {
+        let score = 30 + Math.min(30, (mFeed - 45));
+        list.push({
+          id:'sono', title:'Cansaço / sono', icon:'😴', score: Math.round(score),
+          reason: `Acordado há ~${this.fmtMinutes(mFeed)} (janela saudável em prematuro: 45–90 min)`,
+          tips: [
+            'Enrolar (swaddling) — braços contidos junto ao corpo, ancas livres para desenvolver bem.',
+            'Ruído branco constante (secador, aspirador, app dedicada) simula o útero.',
+            'Sucção não-nutritiva: chucha ou dedo mindinho limpo — calma sem alimentar em excesso.',
+            'Ambiente escuro (mesmo de dia), 20–22°C.',
+            'Embalar suave — não sacudir. Balançar em movimento contínuo por 5–10 min.',
+            'Bebé sobrecansado chora MAIS — atender ao primeiro bocejo, não esperar pelo choro.'
+          ]
+        });
+      }
+
+      // ---------- REFLUXO / GER ----------
+      if (mFeed !== null && mFeed < 45) {
+        list.push({
+          id:'refluxo', title:'Refluxo (GER)', icon:'↩️', score: 40,
+          reason: 'Choro logo após ou durante a mamada — comum em prematuros tardios',
+          tips: [
+            'Manter vertical 20–30 min após cada mamada.',
+            'Oferecer mamadas menores e mais frequentes em vez de refeições grandes.',
+            'Elevar levemente a cabeceira do berço (calçar as pernas, nunca almofada dentro).',
+            'Evitar apertar barriga; roupa larga na cintura; fraldas não apertadas.',
+            'Se houver vómitos frequentes, ganho de peso lento, arqueia costas, recusa alimentar → pediatra (pode ser DRGE).'
+          ]
+        });
+      }
+
+      // ---------- SOBRESTÍMULO ----------
+      list.push({
+        id:'estimulo', title:'Sobrestímulo', icon:'🎇', score: 30,
+        reason: 'Prematuros tardios saturam mais depressa a nível sensorial',
+        tips: [
+          'Ir para ambiente calmo, com pouca luz e sem TV.',
+          'Enrolar + colo tranquilo, sem falar; 5–10 min a desligar.',
+          'Pele-com-pele — o ritmo cardíaco do adulto regula o do bebé.',
+          'Reduzir visitas, música alta ou muitas pessoas a pegar.',
+          'Sinais: desviar o olhar, arquear costas, espirros repetidos, soluços.'
+        ]
+      });
+
+      // ---------- TEMPERATURA ----------
+      list.push({
+        id:'temp', title:'Temperatura (frio/calor)', icon:'🌡️', score: 25,
+        reason: 'Verificar nuca ou peito — mãos e pés não são fiáveis',
+        tips: [
+          'Testar a nuca: se estiver morna e seca, temperatura OK.',
+          'Ambiente ideal: 20–22°C, humidade 40–60%.',
+          'Regra: 1 camada a mais do que um adulto está confortável.',
+          'Nunca usar edredão pesado, chapéu para dormir, ou aquecedor perto do berço (risco SMSL).',
+          'No verão: roupa leve de algodão; no inverno: camadas em vez de peça grossa.'
+        ]
+      });
+
+      // Ordenar por score e adicionar campos derivados
+      return list.sort((a,b) => b.score - a.score).slice(0, 6).map((c,i) => ({
+        ...c,
+        open: i === 0, // primeiro expande por defeito
+        scoreLabel: c.score >= 70 ? 'alta' : c.score >= 45 ? 'média' : 'baixa'
+      }));
+    },
+
     get countByType() {
       const o = { feeding:0, diaper:0, weight:0, pumping:0, promil:0, colic:0, note:0 };
       for (const r of this.records) if (o[r.type] !== undefined) o[r.type]++;
