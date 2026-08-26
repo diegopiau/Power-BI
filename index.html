@@ -131,6 +131,19 @@ tailwind.config = {
       </div>
     </template>
 
+    <!-- Sono em curso -->
+    <template x-if="activeSleep">
+      <button class="w-full mb-4 p-3 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-300/60 dark:border-indigo-400/40 flex items-center gap-3 btn-tap text-left"
+              @click="wakeUpNow(activeSleep)">
+        <div class="text-3xl">🌙</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-semibold text-indigo-800 dark:text-indigo-100">A dormir</div>
+          <div class="text-xs text-indigo-700/80 dark:text-indigo-200/80 num-input">desde <span x-text="fmtTime(activeSleep.data.start)"></span> · <span x-text="fmtDuration(Math.round((_now - new Date(activeSleep.data.start))/60000))"></span></div>
+        </div>
+        <div class="text-xs px-3 py-1.5 rounded-full bg-white/70 dark:bg-white/10 font-medium text-indigo-800 dark:text-indigo-100">☀️ Acordou</div>
+      </button>
+    </template>
+
     <!-- Alertas ativos -->
     <template x-if="alerts.length">
       <div class="mb-4 space-y-2">
@@ -180,6 +193,19 @@ tailwind.config = {
         <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Última mamada</div>
         <div class="mt-1 text-3xl font-semibold num-input" x-text="lastFeedingBig"></div>
         <div class="text-xs text-slate-500 dark:text-slate-400 mt-1" x-text="nextFeedingHint"></div>
+      </div>
+      <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 col-span-2">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Sono hoje 😴</div>
+            <div class="mt-1 text-2xl font-semibold num-input" x-text="fmtDuration(todaySleepMinutes)"></div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 num-input">
+              <span x-text="sleepCountToday"></span> sono(s) · maior: <span x-text="fmtDuration(longestSleepToday)"></span>
+            </div>
+          </div>
+          <button class="btn-tap px-3 py-2 rounded-xl bg-indigo-100 dark:bg-indigo-500/30 text-indigo-800 dark:text-indigo-100 text-sm font-medium"
+                  @click="openSheet('sleep')">＋ Sono</button>
+        </div>
       </div>
     </div>
 
@@ -304,7 +330,8 @@ tailwind.config = {
         🤱 <b x-text="countByType.feeding"></b> ·
         💧 <b x-text="countByType.diaper"></b> ·
         ⚖️ <b x-text="countByType.weight"></b> ·
-        🍼 <b x-text="countByType.pumping"></b>
+        🍼 <b x-text="countByType.pumping"></b> ·
+        😴 <b x-text="countByType.sleep"></b>
       </span>
       <span class="text-slate-400" x-text="'app ' + APP_VERSION"></span>
     </div>
@@ -343,6 +370,11 @@ tailwind.config = {
     </div>
 
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+      <div class="text-sm font-medium mb-2" x-text="`Sono (horas/dia) · ${chartRange} d`"></div>
+      <div class="chart-wrap h-48"><canvas id="chartSleep"></canvas></div>
+    </div>
+
+    <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
       <div class="text-sm font-medium mb-2">Distribuição de mamadas por hora (últimos 7 dias)</div>
       <div class="overflow-x-auto -mx-1 px-1">
         <div class="min-w-max space-y-0.5">
@@ -370,7 +402,7 @@ tailwind.config = {
               :data-active="histFilter==='all'"
               :class="histFilter==='all' ? '' : 'bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2'"
               @click="histFilter='all'">Todos</button>
-      <template x-for="t in ['feeding','diaper','weight','pumping','promil','colic','note']" :key="t">
+      <template x-for="t in ['feeding','sleep','diaper','weight','pumping','promil','colic','note']" :key="t">
         <button class="btn-tap px-3 py-1.5 rounded-full text-sm whitespace-nowrap segbtn"
                 :data-active="histFilter===t"
                 :class="histFilter===t ? '' : 'bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2'"
@@ -419,9 +451,19 @@ tailwind.config = {
 
     <div x-show="guideTab==='age'">
       <div class="p-4 rounded-2xl bg-mint-100 dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
-        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Idade corrigida agora</div>
-        <div class="mt-1 text-3xl font-semibold num-input" x-text="correctedAgeText"></div>
-        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 num-input" x-text="`cronológica ${ageText} · nasceu ${profile.gestational_weeks}s${profile.gestational_days}d`"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Cronológica</div>
+            <div class="mt-1 text-xl font-semibold num-input" x-text="ageFmt.monthsDays"></div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400 num-input mt-0.5" x-text="`${ageFmt.total} · ${ageFmt.weeksDays}`"></div>
+          </div>
+          <div class="border-l border-mint-200/60 dark:border-night-2 pl-3">
+            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Corrigida</div>
+            <div class="mt-1 text-xl font-semibold num-input text-mint-500 dark:text-mint-200" x-text="correctedAgeDays<0 ? `${-correctedAgeDays} d p/ termo` : correctedFmt.monthsDays"></div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400 num-input mt-0.5" x-show="correctedAgeDays>=0" x-text="`${correctedFmt.total} · ${correctedFmt.weeksDays}`"></div>
+          </div>
+        </div>
+        <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-3 pt-3 border-t border-mint-200/60 dark:border-night-2 num-input" x-text="`nasceu ${profile.gestational_weeks}s${profile.gestational_days}d · faltavam ${(40 - profile.gestational_weeks)}s${profile.gestational_days>0?' e '+(7-profile.gestational_days)+'d':''} para termo`"></div>
       </div>
 
       <div class="p-4 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
@@ -817,6 +859,34 @@ tailwind.config = {
           </div>
         </template>
 
+        <!-- SLEEP -->
+        <template x-if="sheet==='sleep'">
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-2">
+              <button class="btn-tap py-3 rounded-xl bg-mint-100 dark:bg-night-2 text-sm font-medium" @click="form.start = nowLocalISO(); form.end=''">🌙 Adormeceu agora</button>
+              <button class="btn-tap py-3 rounded-xl bg-mint-100 dark:bg-night-2 text-sm font-medium" @click="form.end = nowLocalISO()" :class="form.start && !form.end ? 'ring-2 ring-mint-300' : ''">☀️ Acordou agora</button>
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Início</label>
+              <input type="datetime-local" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.start">
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Fim <span class="text-slate-400">· vazio = ainda a dormir</span></label>
+              <input type="datetime-local" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.end">
+            </div>
+            <template x-if="form.start && form.end">
+              <div class="text-center p-3 rounded-xl bg-mint-100 dark:bg-night-2">
+                <div class="text-xs text-slate-500 dark:text-slate-400">Duração</div>
+                <div class="text-2xl font-semibold num-input" x-text="sleepDurationPreview()"></div>
+              </div>
+            </template>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Notas</label>
+              <input class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.notes" placeholder="ex.: colo, chuchou, acordou a chorar...">
+            </div>
+          </div>
+        </template>
+
         <!-- CRY assistant -->
         <template x-if="sheet==='cry'">
           <div class="space-y-3">
@@ -854,6 +924,47 @@ tailwind.config = {
             <div class="p-3 rounded-xl bg-rose-100 dark:bg-rose-400/15 border border-rose-200/60 dark:border-rose-400/30 text-xs text-rose-400 dark:text-rose-200 leading-relaxed">
               ⚠️ <b>Sinais de alarme</b> — SNS 24 (808 24 24 24) ou urgência: choro inconsolável &gt;2h, febre ≥38°C rectal (&lt;3 meses), letargia, recusa alimentar, dificuldade respiratória, cianose, convulsão, fontanela abaulada/afundada, vómito em jato, sangue nas fezes.
             </div>
+          </div>
+        </template>
+
+        <!-- BACKFILL "dia padrão" -->
+        <template x-if="sheet==='backfill'">
+          <div class="space-y-4">
+            <div class="p-3 rounded-xl bg-amber-100 dark:bg-amber-400/15 border border-amber-300/50 dark:border-amber-500/40 text-xs text-amber-800 dark:text-amber-100">
+              Preenche automaticamente um dia inteiro com registos <b>estimados</b> baseados nas metas (mamadas, fraldas molhadas, cocós, sonos típicos). Cada registo fica marcado com 🤖 auto para saberes que não é real.
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Dia a preencher</label>
+              <input type="date" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="backfill.date">
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">O que gerar</label>
+              <label class="flex items-center gap-3 p-3 rounded-xl bg-mint-50 dark:bg-night-2 mb-2">
+                <input type="checkbox" x-model="backfill.feedings" class="w-5 h-5">
+                <div class="flex-1">
+                  <div class="text-sm font-medium">Mamadas</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400"><span x-text="settings.target_feedings_per_day"></span> mamadas espaçadas ao longo do dia (só mama)</div>
+                </div>
+              </label>
+              <label class="flex items-center gap-3 p-3 rounded-xl bg-mint-50 dark:bg-night-2 mb-2">
+                <input type="checkbox" x-model="backfill.diapers" class="w-5 h-5">
+                <div class="flex-1">
+                  <div class="text-sm font-medium">Fraldas</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400"><span x-text="settings.min_wet_diapers"></span> molhadas + 2 cocós, espaçadas</div>
+                </div>
+              </label>
+              <label class="flex items-center gap-3 p-3 rounded-xl bg-mint-50 dark:bg-night-2">
+                <input type="checkbox" x-model="backfill.sleeps" class="w-5 h-5">
+                <div class="flex-1">
+                  <div class="text-sm font-medium">Sonos</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">4 sonos de dia + 1 estirão noturno (~14h total)</div>
+                </div>
+              </label>
+            </div>
+            <div class="text-xs text-slate-500 dark:text-slate-400">
+              Se já houver registos manuais nesse dia, os automáticos ficam por cima — podes apagar depois.
+            </div>
+            <button class="btn-tap w-full py-3 rounded-xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold" @click="runBackfill()">Gerar registos</button>
           </div>
         </template>
 
@@ -928,6 +1039,7 @@ tailwind.config = {
                   ⬆️ Restaurar
                   <input type="file" accept="application/json" class="hidden" @change="importData($event)">
                 </label>
+                <button class="btn-tap col-span-2 py-3 rounded-xl bg-indigo-200 dark:bg-indigo-500/30 text-sm font-medium" @click="closeSheet(); openSheet('backfill')">🤖 Preencher dia padrão (auto)</button>
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-amber-200 dark:bg-amber-500/30 text-sm font-medium" @click="hardReload()">🔄 Atualizar app (limpar cache)</button>
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-rose-200 dark:bg-rose-400/30 text-sm font-medium" @click="clearAll()">🗑️ Apagar tudo (duplo)</button>
               </div>
@@ -943,10 +1055,10 @@ tailwind.config = {
         <template x-if="sheet==='settings'">
           <button class="btn-tap w-full py-4 rounded-2xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold text-lg" @click="saveSettings()">Guardar</button>
         </template>
-        <template x-if="sheet==='cry'">
+        <template x-if="sheet==='cry' || sheet==='backfill'">
           <button class="btn-tap w-full py-4 rounded-2xl bg-slate-200 dark:bg-night-2 text-slate-900 dark:text-slate-100 font-semibold text-lg" @click="closeSheet()">Fechar</button>
         </template>
-        <template x-if="!['settings','cry'].includes(sheet)">
+        <template x-if="!['settings','cry','backfill'].includes(sheet)">
           <button class="btn-tap w-full py-4 rounded-2xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold text-lg" @click="saveRecord()" x-text="editing ? 'Guardar alterações' : 'Guardar registo'"></button>
         </template>
       </div>
@@ -963,7 +1075,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v11';
+    const CACHE = 'bernardo-v12';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1013,7 +1125,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v11';
+const APP_VERSION = 'v12';
 
 // Plugin inline para desenhar rótulos de valor nas barras/linhas.
 // Ativado por chart via options.plugins.valueLabels = { enabled: true, color, stack }.
@@ -1061,8 +1173,10 @@ function app() {
     sheet: null, sheetTitle: '',
     editing: null,
     cryCache: [],
+    backfill: { date: '', feedings: true, diapers: true, sleeps: true },
     fabOpen: false,
     fabItems: [
+      { k:'sleep',   label:'Sono',      icon:'😴' },
       { k:'weight',  label:'Peso',      icon:'⚖️' },
       { k:'pumping', label:'Extração',  icon:'🍼' },
       { k:'promil',  label:'Promil',    icon:'💊' },
@@ -1248,6 +1362,23 @@ function app() {
       const gestDays = (this.profile.gestational_weeks||40)*7 + (this.profile.gestational_days||0);
       return this.ageDays - (40*7 - gestDays);
     },
+    // Formatos completos: total dias, sem+d, meses+d
+    ageFormats(days) {
+      if (days == null || isNaN(days)) return { total:'—', weeksDays:'—', monthsDays:'—' };
+      const negative = days < 0;
+      const d = Math.abs(days);
+      const w = Math.floor(d/7), wd = d%7;
+      const m = Math.floor(d/30.4375);
+      const md = Math.round(d - m*30.4375);
+      const sign = negative ? '-' : '';
+      return {
+        total: `${sign}${d} d`,
+        weeksDays: `${sign}${w}s ${wd}d`,
+        monthsDays: m > 0 ? `${sign}${m}m ${md}d` : `${sign}${d} d`
+      };
+    },
+    get ageFmt() { return this.ageFormats(this.ageDays); },
+    get correctedFmt() { return this.ageFormats(this.correctedAgeDays); },
     get todayDateShort() {
       return new Date(this._now).toLocaleDateString('pt-PT', { weekday:'short', day:'2-digit', month:'short' });
     },
@@ -1324,6 +1455,45 @@ function app() {
       if (d.source === 'materno') return Number(d.ml) || 0;
       if (d.source === 'misto')   return Number(d.ml_materno) || 0;
       return 0;
+    },
+    // ===== SONO =====
+    get activeSleep() {
+      // Sono em curso = registo com start mas sem end
+      return this.records.filter(r => r.type==='sleep' && r.data.start && !r.data.end)
+        .sort((a,b) => new Date(b.data.start) - new Date(a.data.start))[0];
+    },
+    // Minutos de sono que caem dentro deste dia (overlap simples com o dia)
+    sleepMinutesOn(dayStartMs) {
+      const dayEndMs = dayStartMs + 86400000;
+      let total = 0;
+      for (const r of this.records) {
+        if (r.type !== 'sleep' || !r.data.start) continue;
+        const s = new Date(r.data.start).getTime();
+        const e = r.data.end ? new Date(r.data.end).getTime() : Math.min(this._now, dayEndMs);
+        const overlap = Math.max(0, Math.min(e, dayEndMs) - Math.max(s, dayStartMs));
+        total += overlap;
+      }
+      return Math.round(total / 60000);
+    },
+    get todaySleepMinutes() { return this.sleepMinutesOn(this.startOfToday()); },
+    get longestSleepToday() {
+      const day = this.startOfToday(), dayEnd = day + 86400000;
+      let max = 0;
+      for (const r of this.records) {
+        if (r.type !== 'sleep' || !r.data.start) continue;
+        const s = new Date(r.data.start).getTime();
+        const e = r.data.end ? new Date(r.data.end).getTime() : Math.min(this._now, dayEnd);
+        if (e <= day || s >= dayEnd) continue;
+        const dur = Math.min(e, dayEnd) - Math.max(s, day);
+        if (dur > max) max = dur;
+      }
+      return Math.round(max/60000);
+    },
+    get sleepCountToday() {
+      const day = this.startOfToday(), dayEnd = day + 86400000;
+      return this.records.filter(r => r.type==='sleep' && r.data.start &&
+        new Date(r.data.start).getTime() < dayEnd &&
+        (r.data.end ? new Date(r.data.end).getTime() > day : true)).length;
     },
     get todayExtracted() {
       return this.todayRecords.filter(r => r.type==='pumping').reduce((s,r) => s + (Number(r.data.ml)||0), 0);
@@ -1412,8 +1582,8 @@ function app() {
         .reduce((s,r) => s + (Number(r.data.ml)||0), 0);
     },
 
-    icon(t) { return {feeding:'🤱',diaper:'💧',weight:'⚖️',pumping:'🍼',promil:'💊',colic:'😣',note:'✏️'}[t] || '•'; },
-    labelType(t) { return {feeding:'Mamada',diaper:'Fralda',weight:'Peso',pumping:'Extração',promil:'Promil',colic:'Cólica',note:'Nota'}[t] || t; },
+    icon(t) { return {feeding:'🤱',diaper:'💧',weight:'⚖️',pumping:'🍼',promil:'💊',colic:'😣',note:'✏️',sleep:'😴'}[t] || '•'; },
+    labelType(t) { return {feeding:'Mamada',diaper:'Fralda',weight:'Peso',pumping:'Extração',promil:'Promil',colic:'Cólica',note:'Nota',sleep:'Sono'}[t] || t; },
     fmtTime(ts) { return new Date(ts).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'}); },
     fmtDate(ts) { return new Date(ts).toLocaleDateString('pt-PT',{day:'2-digit',month:'short'}); },
     dayLabel(d) {
@@ -1437,6 +1607,7 @@ function app() {
       switch (r.type) {
         case 'feeding': {
           const p = [];
+          if (d.autogen) p.push('🤖 auto');
           if (d.method==='mama') p.push('Mama');
           else if (d.method==='tetina') p.push('Tetina');
           else if (d.method==='misto') p.push('Misto');
@@ -1457,7 +1628,8 @@ function app() {
         case 'diaper': {
           const k = {wet:'Molhada',poop:'Cocó',both:'Molhada + Cocó'}[d.diaperKind] || '';
           const extras = [d.urine_color && `urina ${d.urine_color}`, d.poop_desc, d.poop_color].filter(Boolean).join(', ');
-          return extras ? `${k} (${extras})` : k;
+          const auto = d.autogen ? '🤖 auto · ' : '';
+          return extras ? `${auto}${k} (${extras})` : `${auto}${k}`;
         }
         case 'weight': return `${d.grams} g${d.notes?' · '+d.notes:''}`;
         case 'pumping': {
@@ -1469,6 +1641,14 @@ function app() {
         case 'promil': return `${d.sachets||1} saqueta${(d.sachets||1)>1?'s':''}`;
         case 'colic': return `${'★'.repeat(d.severity||0)}${(d.duration_min?' · '+d.duration_min+' min':'')}${d.helped?.length?' · '+d.helped.join(', '):''}${d.notes?' — '+d.notes:''}`;
         case 'note': return d.text || '(vazio)';
+        case 'sleep': {
+          if (!d.start) return '—';
+          const s = new Date(d.start);
+          if (!d.end) return `A dormir desde ${this.fmtTime(d.start)}${d.autogen?' (auto)':''}`;
+          const e = new Date(d.end);
+          const min = Math.max(0, Math.round((e-s)/60000));
+          return `${this.fmtDuration(min)} · ${this.fmtTime(d.start)} → ${this.fmtTime(d.end)}${d.autogen?' (auto)':''}`;
+        }
         default: return JSON.stringify(d);
       }
     },
@@ -1478,11 +1658,14 @@ function app() {
       this.editing = existing || null;
       this.sheetTitle = {
         feeding:'Mamada', diaper:'Fralda', weight:'Peso', pumping:'Extração',
-        promil:'Promil', colic:'Cólica', note:'Nota', settings:'Definições',
-        cry:'Motivo do choro'
+        promil:'Promil', colic:'Cólica', note:'Nota', sleep:'Sono',
+        settings:'Definições', cry:'Motivo do choro', backfill:'Preencher dia padrão'
       }[kind] || '';
       if (kind === 'cry') {
         this.cryCache = this.analyzeCry();
+        this.form = {};
+      } else if (kind === 'backfill') {
+        if (!this.backfill.date) this.backfill.date = new Date().toISOString().slice(0,10);
         this.form = {};
       } else {
         this.form = existing ? this.recordToForm(existing) : this.defaultForm(kind);
@@ -1505,12 +1688,19 @@ function app() {
         case 'promil':  return { ...base, sachets:1 };
         case 'colic':   return { ...base, severity:3, duration_min:10, helped:[], notes:'' };
         case 'note':    return { ...base, text:'' };
+        case 'sleep':   return { ...base, start:'', end:'', notes:'' };
         default:        return base;
       }
     },
     recordToForm(r) {
-      const localISO = new Date(new Date(r.timestamp).getTime() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
-      return { ...r.data, whenChoice:'custom', timestamp: localISO };
+      const toLocal = ts => new Date(new Date(ts).getTime() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+      const localISO = toLocal(r.timestamp);
+      const data = { ...r.data };
+      if (r.type === 'sleep') {
+        if (data.start) data.start = toLocal(data.start);
+        if (data.end)   data.end   = toLocal(data.end);
+      }
+      return { ...data, whenChoice:'custom', timestamp: localISO };
     },
     computeTimestamp() {
       if (this.form.whenChoice==='custom' && this.form.timestamp) return new Date(this.form.timestamp).toISOString();
@@ -1531,8 +1721,15 @@ function app() {
       if (this.sheet==='feeding' && this.form.source==='misto') {
         this.form.ml = (Number(this.form.ml_materno)||0) + (Number(this.form.ml_formula)||0);
       }
+      // Sono usa start/end explícitos como timestamp do evento (usa start)
+      if (this.sheet==='sleep') {
+        if (!this.form.start) { alert('Define pelo menos o início do sono.'); return; }
+        this.form.start = new Date(this.form.start).toISOString();
+        if (this.form.end) this.form.end = new Date(this.form.end).toISOString();
+        else this.form.end = null;
+      }
       const { whenChoice, timestamp, ...data } = this.form;
-      const ts = this.computeTimestamp();
+      const ts = this.sheet==='sleep' ? this.form.start : this.computeTimestamp();
       if (this.editing) {
         this.records = this.records.map(r => r.id===this.editing.id ? { ...r, timestamp:ts, data } : r);
         this.showToast(`✓ ${this.labelType(this.sheet)} atualizada`);
@@ -1544,6 +1741,93 @@ function app() {
       this.closeSheet();
     },
     editRecord(r) { this.openSheet(r.type, r); },
+    runBackfill() {
+      const [y,m,d] = this.backfill.date.split('-').map(Number);
+      if (!y) { alert('Escolhe uma data válida.'); return; }
+      const dayStart = new Date(y, m-1, d, 0, 0, 0).getTime();
+      const isToday = new Date(dayStart).toDateString() === new Date(this._now).toDateString();
+      const cutoff = isToday ? this._now : dayStart + 86400000;
+      const newRecs = [];
+      const at = (h, mm=0) => {
+        const t = new Date(dayStart); t.setHours(h, mm, 0, 0);
+        return t.getTime();
+      };
+
+      // Mamadas — distribuídas de manhã à noite, com uma noturna
+      if (this.backfill.feedings) {
+        const n = this.settings.target_feedings_per_day || 10;
+        // 8 durante o dia entre 07h e 22h, restantes à noite
+        const daytime = Math.max(6, n - 2);
+        const nightExtra = n - daytime;
+        const dayGap = (22-7) * 60 / (daytime - 1);
+        for (let i=0; i<daytime; i++) {
+          const t = at(7) + i * dayGap * 60000;
+          if (t <= cutoff) newRecs.push({
+            id: uuid(), type:'feeding', timestamp: new Date(t).toISOString(),
+            data:{ method:'mama', side: i%2===0 ? 'E' : 'D', duration_min:15, ml:0, source:'materno', notes_chips:[], notes:'', autogen:true }
+          });
+        }
+        for (let i=0; i<nightExtra; i++) {
+          const t = at(2 + i*3);
+          if (t <= cutoff) newRecs.push({
+            id: uuid(), type:'feeding', timestamp: new Date(t).toISOString(),
+            data:{ method:'mama', side:'ambos', duration_min:15, ml:0, source:'materno', notes_chips:[], notes:'', autogen:true }
+          });
+        }
+      }
+
+      // Fraldas — molhadas ao longo do dia + 2 cocós
+      if (this.backfill.diapers) {
+        const wets = Math.max(6, this.settings.min_wet_diapers || 6);
+        const wetGap = 24 * 60 / wets;
+        for (let i=0; i<wets; i++) {
+          const t = at(6) + i * wetGap * 60000;
+          if (t <= cutoff) newRecs.push({
+            id: uuid(), type:'diaper', timestamp: new Date(t).toISOString(),
+            data:{ diaperKind:'wet', urine_color:'clara', autogen:true }
+          });
+        }
+        for (const h of [10, 18]) {
+          const t = at(h);
+          if (t <= cutoff) newRecs.push({
+            id: uuid(), type:'diaper', timestamp: new Date(t).toISOString(),
+            data:{ diaperKind:'poop', poop_desc:'pastosa', poop_color:'mostarda', autogen:true }
+          });
+        }
+      }
+
+      // Sono — 4 sonos diurnos de ~1h30 + estirão noturno ~4h
+      if (this.backfill.sleeps) {
+        const naps = [ [8,30], [11,30], [14,0], [17,0] ]; // hora início
+        for (const [h,mm] of naps) {
+          const s = at(h, mm);
+          const e = s + 90*60000;
+          if (s <= cutoff) newRecs.push({
+            id: uuid(), type:'sleep', timestamp: new Date(s).toISOString(),
+            data:{ start: new Date(s).toISOString(), end: Math.min(e, cutoff)===e ? new Date(e).toISOString() : new Date(cutoff).toISOString(), notes:'', autogen:true }
+          });
+        }
+        // Noturno 23h → 03h
+        const s = at(23);
+        const e = s + 4*60*60000;
+        if (s <= cutoff) newRecs.push({
+          id: uuid(), type:'sleep', timestamp: new Date(s).toISOString(),
+          data:{ start: new Date(s).toISOString(), end: Math.min(e, cutoff)===e ? new Date(e).toISOString() : new Date(cutoff).toISOString(), notes:'', autogen:true }
+        });
+      }
+
+      if (!newRecs.length) { this.showToast('Nada gerado.'); return; }
+      this.records = [...this.records, ...newRecs];
+      this.showToast(`✓ ${newRecs.length} registos gerados`);
+      this.closeSheet();
+    },
+    wakeUpNow(r) {
+      const nowIso = new Date().toISOString();
+      this.records = this.records.map(x => x.id === r.id
+        ? { ...x, data: { ...x.data, end: nowIso } }
+        : x);
+      this.showToast('☀️ Acordou');
+    },
     deleteRecord(id) {
       const rec = this.records.find(r => r.id===id);
       if (!rec) return;
@@ -1744,6 +2028,14 @@ function app() {
         options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false }, valueLabels: vl }, scales:{ x:{ grid:{ color:grid } }, y:{ beginAtZero:true, grid:{ color:grid } } } }
       });
 
+      // Sono por dia (horas, com uma casa decimal)
+      const sleepHoursPerDay = dayKeys.map(d => +(this.sleepMinutesOn(d.getTime())/60).toFixed(1));
+      this._chart('chartSleep', {
+        type:'bar',
+        data:{ labels, datasets:[{ label:'horas', data:sleepHoursPerDay, backgroundColor:'#818CF8' }] },
+        options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false }, valueLabels: vl }, scales:{ x:{ grid:{ color:grid } }, y:{ beginAtZero:true, grid:{ color:grid } } } }
+      });
+
       this._chart('chartMilk', {
         type: 'bar',
         data:{ labels, datasets:[
@@ -1767,6 +2059,20 @@ function app() {
       if (m < 60) return `${m} min`;
       const h = Math.floor(m/60), r = m%60;
       return r ? `${h}h${String(r).padStart(2,'0')}` : `${h}h`;
+    },
+    nowLocalISO() {
+      return new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+    },
+    sleepDurationPreview() {
+      if (!this.form.start || !this.form.end) return '—';
+      const s = new Date(this.form.start), e = new Date(this.form.end);
+      return this.fmtDuration(Math.max(0, Math.round((e-s)/60000)));
+    },
+    fmtDuration(m) {
+      if (!m || m < 0) return '0 min';
+      if (m < 60) return `${m} min`;
+      const h = Math.floor(m/60), r = m%60;
+      return r ? `${h}h ${String(r).padStart(2,'0')}` : `${h}h`;
     },
 
     // Analisador de choro — combina contexto do histórico com heurísticas
@@ -1928,7 +2234,7 @@ function app() {
     },
 
     get countByType() {
-      const o = { feeding:0, diaper:0, weight:0, pumping:0, promil:0, colic:0, note:0 };
+      const o = { feeding:0, diaper:0, weight:0, pumping:0, promil:0, colic:0, note:0, sleep:0 };
       for (const r of this.records) if (o[r.type] !== undefined) o[r.type]++;
       return o;
     },
