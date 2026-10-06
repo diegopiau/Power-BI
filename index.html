@@ -231,6 +231,45 @@ tailwind.config = {
       <div class="text-amber-500 dark:text-amber-300">›</div>
     </button>
 
+    <!-- Remédios hoje -->
+    <div class="mb-4" x-show="medsScheduled.length || medsPrn.length">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 px-1">Remédios hoje 💊</div>
+        <button class="text-xs text-mint-500 dark:text-mint-200" @click="openSheet('medsconfig')">Gerir →</button>
+      </div>
+      <div class="space-y-2">
+        <template x-for="row in medsScheduled" :key="row.m.id">
+          <div class="p-3 rounded-xl border flex items-center gap-3" :class="medClasses(row.status)">
+            <div class="text-2xl leading-none" x-text="row.m.icon"></div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium flex items-center gap-2">
+                <span x-text="row.m.name"></span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full num-input"
+                      :class="row.status==='done' ? 'bg-mint-200 dark:bg-mint-500/40 text-mint-500 dark:text-mint-100' : row.status==='overdue' ? 'bg-rose-200 dark:bg-rose-400/40 text-rose-400 dark:text-rose-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300'"
+                      x-text="`${row.given}/${row.needed}`"></span>
+              </div>
+              <div class="text-xs text-slate-500 dark:text-slate-400" x-text="row.m.note || (row.nextDueMs ? ('próxima ~'+fmtTime(new Date(row.nextDueMs).toISOString())) : '')"></div>
+            </div>
+            <button x-show="row.given < row.needed" class="btn-tap px-3 py-2 rounded-lg bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 text-sm font-medium shrink-0" @click="logMed(row.m)">✓ Dei</button>
+            <div x-show="row.given >= row.needed" class="text-mint-500 dark:text-mint-200 text-xl shrink-0">✓</div>
+          </div>
+        </template>
+        <template x-for="row in medsPrn" :key="row.m.id">
+          <div class="p-3 rounded-xl border border-mint-200/60 dark:border-night-2 bg-white dark:bg-night-2 flex items-center gap-3">
+            <div class="text-2xl leading-none" x-text="row.m.icon"></div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium flex items-center gap-2">
+                <span x-text="row.m.name"></span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300">quando preciso</span>
+              </div>
+              <div class="text-xs text-slate-500 dark:text-slate-400" x-text="row.last ? ('última vez '+timeAgo(row.last.timestamp)+' · '+fmtDate(row.last.timestamp)) : (row.m.note || 'ainda sem registo')"></div>
+            </div>
+            <button class="btn-tap px-3 py-2 rounded-lg bg-mint-100 dark:bg-night-1 text-sm font-medium shrink-0" @click="logMed(row.m)">Registar</button>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <!-- Suplemento sugerido -->
     <div class="p-4 rounded-2xl bg-mint-100 dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-6" x-show="lastWeight || profile.birth_weight_g">
       <div class="flex items-start justify-between gap-3">
@@ -346,6 +385,11 @@ tailwind.config = {
       <div class="text-xs text-slate-500 dark:text-slate-400 mt-2" x-text="`ganho médio: ${avgGainText}`"></div>
     </div>
 
+    <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3" x-show="countByType.height > 0">
+      <div class="text-sm font-medium mb-2" x-text="`Altura (cm) · ${chartRange} d`"></div>
+      <div class="chart-wrap h-48"><canvas id="chartHeight"></canvas></div>
+    </div>
+
     <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
       <div class="text-sm font-medium mb-2" x-text="`Mamadas por dia (${chartRange} d)`"></div>
       <div class="chart-wrap h-48"><canvas id="chartFeedings"></canvas></div>
@@ -402,7 +446,7 @@ tailwind.config = {
               :data-active="histFilter==='all'"
               :class="histFilter==='all' ? '' : 'bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2'"
               @click="histFilter='all'">Todos</button>
-      <template x-for="t in ['feeding','sleep','diaper','weight','pumping','promil','colic','note']" :key="t">
+      <template x-for="t in ['feeding','sleep','diaper','weight','height','med','pumping','promil','colic','note']" :key="t">
         <button class="btn-tap px-3 py-1.5 rounded-full text-sm whitespace-nowrap segbtn"
                 :data-active="histFilter===t"
                 :class="histFilter===t ? '' : 'bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2'"
@@ -571,7 +615,7 @@ tailwind.config = {
       </div>
 
       <div class="p-5 space-y-4">
-        <template x-if="['feeding','diaper','weight','pumping','promil','colic','note'].includes(sheet)">
+        <template x-if="['feeding','diaper','weight','height','pumping','promil','colic','note','med'].includes(sheet)">
           <div>
             <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Quando</label>
             <div class="flex gap-2">
@@ -768,6 +812,27 @@ tailwind.config = {
           </div>
         </template>
 
+        <!-- HEIGHT -->
+        <template x-if="sheet==='height'">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Altura / comprimento (cm)</label>
+              <div class="flex items-center gap-2">
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.cm=Math.max(0,Math.round(((form.cm||0)-0.5)*10)/10)">−</button>
+                <input type="number" inputmode="decimal" step="0.1" class="flex-1 p-4 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-2xl font-semibold" x-model.number="form.cm" placeholder="48">
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.cm=Math.round(((form.cm||0)+0.5)*10)/10">+</button>
+              </div>
+              <template x-if="lastHeight && form.cm">
+                <div class="mt-2 text-sm text-center num-input text-slate-500 dark:text-slate-400" x-text="`${(form.cm-lastHeight.data.cm>=0?'+':'')}${(form.cm-lastHeight.data.cm).toFixed(1)} cm desde ${fmtDate(lastHeight.timestamp)}`"></div>
+              </template>
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Notas</label>
+              <input class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.notes" placeholder="ex.: medido na consulta">
+            </div>
+          </div>
+        </template>
+
         <!-- PUMPING -->
         <template x-if="sheet==='pumping'">
           <div class="space-y-4">
@@ -859,6 +924,61 @@ tailwind.config = {
           </div>
         </template>
 
+        <!-- MED (editar toma registada) -->
+        <template x-if="sheet==='med'">
+          <div class="space-y-4">
+            <div class="p-3 rounded-xl bg-mint-100 dark:bg-night-2 text-sm font-medium" x-text="form.name || 'Remédio'"></div>
+            <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Notas</label>
+              <input class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.notes" placeholder="ex.: dose parcial, cuspiu um pouco">
+            </div>
+          </div>
+        </template>
+
+        <!-- MEDS CONFIG (gerir regime) -->
+        <template x-if="sheet==='medsconfig'">
+          <div class="space-y-3">
+            <div class="p-3 rounded-xl bg-mint-100 dark:bg-night-2 text-xs text-slate-600 dark:text-slate-300">
+              Gere os remédios do Bernardo. "Quando preciso" = toma pontual (ex.: bebé gel), sem contagem diária. Define uma data-fim para antibióticos.
+            </div>
+            <template x-for="(m,idx) in meds" :key="m.id">
+              <div class="rounded-xl border border-mint-200/60 dark:border-night-2 bg-white dark:bg-night-2 p-3 space-y-2" :class="medEndActive(m) ? '' : 'opacity-50'">
+                <div class="flex items-center gap-2">
+                  <input class="w-10 text-center text-xl bg-mint-50 dark:bg-night-1 rounded-lg p-1" x-model="m.icon" maxlength="2">
+                  <input class="flex-1 p-2 rounded-lg bg-mint-50 dark:bg-night-1 border border-mint-200 dark:border-night-2 font-medium" x-model="m.name" placeholder="Nome">
+                  <button class="btn-tap text-slate-400 hover:text-rose-400 p-1" @click="meds = meds.filter(x=>x.id!==m.id)" aria-label="Remover">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M7 7l1 12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-12"/></svg>
+                  </button>
+                </div>
+                <div class="flex gap-2">
+                  <button class="btn-tap flex-1 py-1.5 rounded-lg segbtn text-xs" :data-active="!m.prn && m.freq==='daily'" @click="m.prn=false; m.freq='daily'">N× por dia</button>
+                  <button class="btn-tap flex-1 py-1.5 rounded-lg segbtn text-xs" :data-active="!m.prn && m.freq==='interval'" @click="m.prn=false; m.freq='interval'">A cada X h</button>
+                  <button class="btn-tap flex-1 py-1.5 rounded-lg segbtn text-xs" :data-active="m.prn" @click="m.prn=true">Quando preciso</button>
+                </div>
+                <div class="flex gap-2 items-center" x-show="!m.prn && m.freq==='daily'">
+                  <span class="text-xs text-slate-500 dark:text-slate-400">Tomas/dia:</span>
+                  <input type="number" inputmode="numeric" class="w-16 p-2 rounded-lg bg-mint-50 dark:bg-night-1 border border-mint-200 dark:border-night-2 text-center num-input" x-model.number="m.perDay">
+                </div>
+                <div class="flex gap-2 items-center" x-show="!m.prn && m.freq==='interval'">
+                  <span class="text-xs text-slate-500 dark:text-slate-400">A cada</span>
+                  <input type="number" inputmode="numeric" class="w-16 p-2 rounded-lg bg-mint-50 dark:bg-night-1 border border-mint-200 dark:border-night-2 text-center num-input" x-model.number="m.intervalHours">
+                  <span class="text-xs text-slate-500 dark:text-slate-400">horas</span>
+                </div>
+                <input class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-1 border border-mint-200 dark:border-night-2 text-sm" x-model="m.note" placeholder="Nota (ex.: 1h longe da mamada)">
+                <label class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" x-model="m.ironTiming" class="w-4 h-4"> Avisar se mamada &lt;1h (ferro)
+                </label>
+                <div class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                  <span>Até (opcional):</span>
+                  <input type="date" class="flex-1 p-2 rounded-lg bg-mint-50 dark:bg-night-1 border border-mint-200 dark:border-night-2" :value="m.endDate || ''" @change="m.endDate = $event.target.value || null">
+                  <label class="flex items-center gap-1"><input type="checkbox" x-model="m.active" class="w-4 h-4"> ativo</label>
+                </div>
+              </div>
+            </template>
+            <button class="btn-tap w-full py-3 rounded-xl bg-mint-100 dark:bg-night-2 text-sm font-medium" @click="addMed()">＋ Adicionar remédio</button>
+          </div>
+        </template>
+
         <!-- SLEEP -->
         <template x-if="sheet==='sleep'">
           <div class="space-y-4">
@@ -938,28 +1058,54 @@ tailwind.config = {
               <input type="date" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="backfill.date">
             </div>
             <div>
-              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">O que gerar</label>
-              <label class="flex items-center gap-3 p-3 rounded-xl bg-mint-50 dark:bg-night-2 mb-2">
-                <input type="checkbox" x-model="backfill.feedings" class="w-5 h-5">
-                <div class="flex-1">
-                  <div class="text-sm font-medium">Mamadas</div>
-                  <div class="text-xs text-slate-500 dark:text-slate-400"><span x-text="settings.target_feedings_per_day"></span> mamadas espaçadas ao longo do dia (só mama)</div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">O que gerar (ajusta as quantidades)</label>
+
+              <div class="p-3 rounded-xl bg-mint-50 dark:bg-night-2 mb-2">
+                <label class="flex items-center gap-3">
+                  <input type="checkbox" x-model="backfill.feedings" class="w-5 h-5">
+                  <div class="flex-1 text-sm font-medium">Mamadas (só mama)</div>
+                </label>
+                <div class="flex items-center gap-2 mt-2 pl-8" x-show="backfill.feedings">
+                  <button class="btn-tap w-9 h-9 rounded-lg bg-white dark:bg-night-1 text-lg" @click="backfill.nFeedings=Math.max(0,(backfill.nFeedings||0)-1)">−</button>
+                  <input type="number" inputmode="numeric" class="w-16 p-2 rounded-lg bg-white dark:bg-night-1 border border-mint-200 dark:border-night-2 text-center num-input" x-model.number="backfill.nFeedings">
+                  <button class="btn-tap w-9 h-9 rounded-lg bg-white dark:bg-night-1 text-lg" @click="backfill.nFeedings=(backfill.nFeedings||0)+1">+</button>
+                  <span class="text-xs text-slate-500 dark:text-slate-400">mamadas no dia</span>
                 </div>
-              </label>
-              <label class="flex items-center gap-3 p-3 rounded-xl bg-mint-50 dark:bg-night-2 mb-2">
-                <input type="checkbox" x-model="backfill.diapers" class="w-5 h-5">
-                <div class="flex-1">
-                  <div class="text-sm font-medium">Fraldas</div>
-                  <div class="text-xs text-slate-500 dark:text-slate-400"><span x-text="settings.min_wet_diapers"></span> molhadas + 2 cocós, espaçadas</div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-mint-50 dark:bg-night-2 mb-2">
+                <label class="flex items-center gap-3">
+                  <input type="checkbox" x-model="backfill.diapers" class="w-5 h-5">
+                  <div class="flex-1 text-sm font-medium">Fraldas</div>
+                </label>
+                <div class="mt-2 pl-8 space-y-2" x-show="backfill.diapers">
+                  <div class="flex items-center gap-2">
+                    <button class="btn-tap w-9 h-9 rounded-lg bg-white dark:bg-night-1 text-lg" @click="backfill.nWet=Math.max(0,(backfill.nWet||0)-1)">−</button>
+                    <input type="number" inputmode="numeric" class="w-16 p-2 rounded-lg bg-white dark:bg-night-1 border border-mint-200 dark:border-night-2 text-center num-input" x-model.number="backfill.nWet">
+                    <button class="btn-tap w-9 h-9 rounded-lg bg-white dark:bg-night-1 text-lg" @click="backfill.nWet=(backfill.nWet||0)+1">+</button>
+                    <span class="text-xs text-slate-500 dark:text-slate-400">molhadas</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button class="btn-tap w-9 h-9 rounded-lg bg-white dark:bg-night-1 text-lg" @click="backfill.nPoop=Math.max(0,(backfill.nPoop||0)-1)">−</button>
+                    <input type="number" inputmode="numeric" class="w-16 p-2 rounded-lg bg-white dark:bg-night-1 border border-mint-200 dark:border-night-2 text-center num-input" x-model.number="backfill.nPoop">
+                    <button class="btn-tap w-9 h-9 rounded-lg bg-white dark:bg-night-1 text-lg" @click="backfill.nPoop=(backfill.nPoop||0)+1">+</button>
+                    <span class="text-xs text-slate-500 dark:text-slate-400">cocós</span>
+                  </div>
                 </div>
-              </label>
-              <label class="flex items-center gap-3 p-3 rounded-xl bg-mint-50 dark:bg-night-2">
-                <input type="checkbox" x-model="backfill.sleeps" class="w-5 h-5">
-                <div class="flex-1">
-                  <div class="text-sm font-medium">Sonos</div>
-                  <div class="text-xs text-slate-500 dark:text-slate-400">4 sonos de dia + 1 estirão noturno (~14h total)</div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-mint-50 dark:bg-night-2">
+                <label class="flex items-center gap-3">
+                  <input type="checkbox" x-model="backfill.sleeps" class="w-5 h-5">
+                  <div class="flex-1 text-sm font-medium">Sonos</div>
+                </label>
+                <div class="flex items-center gap-2 mt-2 pl-8" x-show="backfill.sleeps">
+                  <button class="btn-tap w-9 h-9 rounded-lg bg-white dark:bg-night-1 text-lg" @click="backfill.nNaps=Math.max(0,(backfill.nNaps||0)-1)">−</button>
+                  <input type="number" inputmode="numeric" class="w-16 p-2 rounded-lg bg-white dark:bg-night-1 border border-mint-200 dark:border-night-2 text-center num-input" x-model.number="backfill.nNaps">
+                  <button class="btn-tap w-9 h-9 rounded-lg bg-white dark:bg-night-1 text-lg" @click="backfill.nNaps=(backfill.nNaps||0)+1">+</button>
+                  <span class="text-xs text-slate-500 dark:text-slate-400">sonos diurnos + 1 noturno</span>
                 </div>
-              </label>
+              </div>
             </div>
             <div class="text-xs text-slate-500 dark:text-slate-400">
               Se já houver registos manuais nesse dia, os automáticos ficam por cima — podes apagar depois.
@@ -1039,6 +1185,7 @@ tailwind.config = {
                   ⬆️ Restaurar
                   <input type="file" accept="application/json" class="hidden" @change="importData($event)">
                 </label>
+                <button class="btn-tap col-span-2 py-3 rounded-xl bg-mint-200 dark:bg-mint-500/30 text-sm font-medium" @click="closeSheet(); openSheet('medsconfig')">💊 Gerir remédios</button>
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-indigo-200 dark:bg-indigo-500/30 text-sm font-medium" @click="closeSheet(); openSheet('backfill')">🤖 Preencher dia padrão (auto)</button>
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-amber-200 dark:bg-amber-500/30 text-sm font-medium" @click="hardReload()">🔄 Atualizar app (limpar cache)</button>
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-rose-200 dark:bg-rose-400/30 text-sm font-medium" @click="clearAll()">🗑️ Apagar tudo (duplo)</button>
@@ -1055,10 +1202,10 @@ tailwind.config = {
         <template x-if="sheet==='settings'">
           <button class="btn-tap w-full py-4 rounded-2xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold text-lg" @click="saveSettings()">Guardar</button>
         </template>
-        <template x-if="sheet==='cry' || sheet==='backfill'">
+        <template x-if="sheet==='cry' || sheet==='backfill' || sheet==='medsconfig'">
           <button class="btn-tap w-full py-4 rounded-2xl bg-slate-200 dark:bg-night-2 text-slate-900 dark:text-slate-100 font-semibold text-lg" @click="closeSheet()">Fechar</button>
         </template>
-        <template x-if="!['settings','cry','backfill'].includes(sheet)">
+        <template x-if="!['settings','cry','backfill','medsconfig'].includes(sheet)">
           <button class="btn-tap w-full py-4 rounded-2xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold text-lg" @click="saveRecord()" x-text="editing ? 'Guardar alterações' : 'Guardar registo'"></button>
         </template>
       </div>
@@ -1075,7 +1222,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v12';
+    const CACHE = 'bernardo-v13';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1125,7 +1272,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v12';
+const APP_VERSION = 'v13';
 
 // Plugin inline para desenhar rótulos de valor nas barras/linhas.
 // Ativado por chart via options.plugins.valueLabels = { enabled: true, color, stack }.
@@ -1173,11 +1320,12 @@ function app() {
     sheet: null, sheetTitle: '',
     editing: null,
     cryCache: [],
-    backfill: { date: '', feedings: true, diapers: true, sleeps: true },
+    backfill: { date: '', feedings: true, nFeedings: 10, diapers: true, nWet: 6, nPoop: 2, sleeps: true, nNaps: 4 },
     fabOpen: false,
     fabItems: [
       { k:'sleep',   label:'Sono',      icon:'😴' },
       { k:'weight',  label:'Peso',      icon:'⚖️' },
+      { k:'height',  label:'Altura',    icon:'📏' },
       { k:'pumping', label:'Extração',  icon:'🍼' },
       { k:'promil',  label:'Promil',    icon:'💊' },
       { k:'colic',   label:'Cólica',    icon:'😣' },
@@ -1200,6 +1348,8 @@ function app() {
       supplement_meals_divisor: 8
     },
     records: [],
+    // Regime de medicação — definições (separado dos registos de toma)
+    meds: [],
     form: {},
     calc: { weight: 2715, mlPerKg: 150, meals: 8 },
     chartRange: '14',
@@ -1317,6 +1467,9 @@ function app() {
       if (s) Object.assign(this.settings, JSON.parse(s));
       const r = localStorage.getItem('bernardo_records');
       if (r) this.records = JSON.parse(r);
+      const md = localStorage.getItem('bernardo_meds');
+      if (md) this.meds = JSON.parse(md);
+      else this.meds = this.defaultMeds();  // semear com os remédios atuais na 1ª vez
       const t = localStorage.getItem('bernardo_timer');
       if (t) { const parsed = JSON.parse(t); if (parsed?.startedAt) this.timer = { running:true, startedAt: parsed.startedAt, elapsed: (Date.now()-parsed.startedAt)/1000 }; }
       this.theme = localStorage.getItem('bernardo_theme') ||
@@ -1325,6 +1478,7 @@ function app() {
       this.$watch('records',  v => localStorage.setItem('bernardo_records',  JSON.stringify(v)));
       this.$watch('profile',  v => localStorage.setItem('bernardo_profile',  JSON.stringify(v)));
       this.$watch('settings', v => localStorage.setItem('bernardo_settings', JSON.stringify(v)));
+      this.$watch('meds',     v => localStorage.setItem('bernardo_meds',     JSON.stringify(v)));
       this.$watch('tab', v => { if (v==='charts') this.scheduleChartsRender(); });
       this.$watch('records', () => { if (this.tab==='charts') this.scheduleChartsRender(); });
       this.$watch('chartRange', () => { if (this.tab==='charts') this.scheduleChartsRender(); });
@@ -1336,6 +1490,84 @@ function app() {
       this.theme = this.theme==='dark' ? 'light' : 'dark';
       localStorage.setItem('bernardo_theme', this.theme);
       if (this.tab==='charts') this.scheduleChartsRender();
+    },
+
+    // ===== REMÉDIOS =====
+    defaultMeds() {
+      return [
+        { id: uuid(), name:'Ferro',        icon:'🩸', freq:'daily',    perDay:1, intervalHours:24, note:'1h antes ou 1h depois da mamada', ironTiming:true,  prn:false, active:true, endDate:null },
+        { id: uuid(), name:'Vitamina D',   icon:'☀️', freq:'daily',    perDay:1, intervalHours:24, note:'',                                 ironTiming:false, prn:false, active:true, endDate:null },
+        { id: uuid(), name:'Esomeprazol',  icon:'💊', freq:'daily',    perDay:1, intervalHours:24, note:'refluxo',                          ironTiming:false, prn:false, active:true, endDate:null },
+        { id: uuid(), name:'Amoxicilina',  icon:'🦠', freq:'interval', perDay:2, intervalHours:12, note:'otite — a cada 12h',               ironTiming:false, prn:false, active:true, endDate:null },
+        { id: uuid(), name:'Bebé gel',     icon:'🚼', freq:'daily',    perDay:1, intervalHours:24, note:'obstipação — quando necessário',   ironTiming:false, prn:true,  active:true, endDate:null }
+      ];
+    },
+    medEndActive(m) {
+      if (!m.active) return false;
+      if (m.endDate) { const e = new Date(m.endDate); e.setHours(23,59,59,999); if (e.getTime() < this._now) return false; }
+      return true;
+    },
+    dosesNeeded(m) {
+      if (m.freq === 'interval') return Math.max(1, Math.round(24 / (m.intervalHours || 24)));
+      return m.perDay || 1;
+    },
+    medRecordsToday(medId) {
+      const day = this.startOfToday();
+      return this.records.filter(r => r.type==='med' && r.data.medId===medId &&
+        new Date(r.timestamp).getTime() >= day && new Date(r.timestamp).getTime() < day+86400000)
+        .sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+    },
+    lastMedRecord(medId) {
+      return this.records.filter(r => r.type==='med' && r.data.medId===medId)
+        .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+    },
+    get medsScheduled() {
+      return this.meds.filter(m => this.medEndActive(m) && !m.prn).map(m => {
+        const given = this.medRecordsToday(m.id).length;
+        const needed = this.dosesNeeded(m);
+        const last = this.lastMedRecord(m.id);
+        let nextDueMs = null, overdue = false;
+        if (given < needed) {
+          if (m.freq === 'interval' && last) {
+            nextDueMs = new Date(last.timestamp).getTime() + (m.intervalHours||24)*3600000;
+            overdue = nextDueMs < this._now;
+          } else if (!last || new Date(last.timestamp).getTime() < this.startOfToday()) {
+            overdue = false; // ainda não dado hoje mas sem hora fixa
+          }
+        }
+        const status = given >= needed ? 'done' : overdue ? 'overdue' : 'pending';
+        return { m, given, needed, nextDueMs, overdue, status };
+      });
+    },
+    get medsPrn() {
+      return this.meds.filter(m => this.medEndActive(m) && m.prn).map(m => {
+        const last = this.lastMedRecord(m.id);
+        return { m, last };
+      });
+    },
+    logMed(m, forcePast) {
+      // Aviso específico do ferro: idealmente 1h longe das mamadas
+      if (m.ironTiming && !forcePast) {
+        const feeds = this.records.filter(r => r.type==='feeding');
+        const near = feeds.some(r => Math.abs(this._now - new Date(r.timestamp).getTime()) < 60*60000);
+        if (near) {
+          if (!confirm('⚠️ Houve uma mamada há menos de 1h. O ferro absorve melhor longe das mamadas (1h antes ou depois). Registar mesmo assim?')) return;
+        }
+      }
+      const rec = { id: uuid(), type:'med', timestamp: new Date().toISOString(), data:{ medId: m.id, name: m.name, notes:'' } };
+      this.records = [...this.records, rec];
+      this.showToast(`✓ ${m.name} registado`, () => {
+        this.records = this.records.filter(x => x.id !== rec.id);
+        this.showToast(`${m.name} removido`);
+      });
+    },
+    addMed() {
+      this.meds = [...this.meds, { id: uuid(), name:'', icon:'💊', freq:'daily', perDay:1, intervalHours:24, note:'', ironTiming:false, prn:false, active:true, endDate:null }];
+    },
+    medClasses(s) {
+      return s==='done'    ? 'bg-mint-100  dark:bg-mint-500/20  border-mint-300  dark:border-mint-500/40'
+           : s==='overdue' ? 'bg-rose-100  dark:bg-rose-400/20  border-rose-300  dark:border-rose-500/40'
+           :                 'bg-white     dark:bg-night-2      border-mint-200/60 dark:border-night-2';
     },
 
     get ageDays() {
@@ -1431,6 +1663,9 @@ function app() {
     },
     get lastWeight() {
       return this.records.filter(r => r.type==='weight').sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp))[0];
+    },
+    get lastHeight() {
+      return this.records.filter(r => r.type==='height').sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp))[0];
     },
     get avgGainText() {
       const ws = this.records.filter(r=>r.type==='weight').sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
@@ -1528,6 +1763,17 @@ function app() {
 
     get alerts() {
       const out = [];
+      // Remédios em atraso ou ainda por dar (fim de dia)
+      const hourNow = new Date(this._now).getHours();
+      for (const row of this.medsScheduled) {
+        if (row.status === 'overdue') {
+          out.push({ id:'med-'+row.m.id, tone:'alert', icon:'💊', title:`${row.m.name} em atraso`,
+            detail:`${row.given}/${row.needed} dado(s) hoje${row.nextDueMs ? ' · era para ~'+this.fmtTime(new Date(row.nextDueMs).toISOString()) : ''}.` });
+        } else if (row.given < row.needed && hourNow >= 20) {
+          out.push({ id:'med-'+row.m.id, tone:'warn', icon:'💊', title:`${row.m.name} ainda por dar`,
+            detail:`${row.given}/${row.needed} dado(s) hoje.` });
+        }
+      }
       const ws = this.records.filter(r=>r.type==='weight').sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       if (ws.length >= 2) {
         const l = ws[ws.length-1], p = ws[ws.length-2];
@@ -1582,8 +1828,8 @@ function app() {
         .reduce((s,r) => s + (Number(r.data.ml)||0), 0);
     },
 
-    icon(t) { return {feeding:'🤱',diaper:'💧',weight:'⚖️',pumping:'🍼',promil:'💊',colic:'😣',note:'✏️',sleep:'😴'}[t] || '•'; },
-    labelType(t) { return {feeding:'Mamada',diaper:'Fralda',weight:'Peso',pumping:'Extração',promil:'Promil',colic:'Cólica',note:'Nota',sleep:'Sono'}[t] || t; },
+    icon(t) { return {feeding:'🤱',diaper:'💧',weight:'⚖️',height:'📏',pumping:'🍼',promil:'💊',colic:'😣',note:'✏️',sleep:'😴',med:'💊'}[t] || '•'; },
+    labelType(t) { return {feeding:'Mamada',diaper:'Fralda',weight:'Peso',height:'Altura',pumping:'Extração',promil:'Promil',colic:'Cólica',note:'Nota',sleep:'Sono',med:'Remédio'}[t] || t; },
     fmtTime(ts) { return new Date(ts).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'}); },
     fmtDate(ts) { return new Date(ts).toLocaleDateString('pt-PT',{day:'2-digit',month:'short'}); },
     dayLabel(d) {
@@ -1632,6 +1878,8 @@ function app() {
           return extras ? `${auto}${k} (${extras})` : `${auto}${k}`;
         }
         case 'weight': return `${d.grams} g${d.notes?' · '+d.notes:''}`;
+        case 'height': return `${d.cm} cm${d.notes?' · '+d.notes:''}`;
+        case 'med': return `${d.name||'Remédio'}${d.notes?' · '+d.notes:''}`;
         case 'pumping': {
           const p = [`${d.ml||0} ml`];
           if (d.side) p.push(({E:'E',D:'D',ambos:'E+D'})[d.side]);
@@ -1657,15 +1905,20 @@ function app() {
       this.sheet = kind;
       this.editing = existing || null;
       this.sheetTitle = {
-        feeding:'Mamada', diaper:'Fralda', weight:'Peso', pumping:'Extração',
-        promil:'Promil', colic:'Cólica', note:'Nota', sleep:'Sono',
-        settings:'Definições', cry:'Motivo do choro', backfill:'Preencher dia padrão'
+        feeding:'Mamada', diaper:'Fralda', weight:'Peso', height:'Altura', pumping:'Extração',
+        promil:'Promil', colic:'Cólica', note:'Nota', sleep:'Sono', med:'Remédio',
+        settings:'Definições', cry:'Motivo do choro', backfill:'Preencher dia padrão', medsconfig:'Gerir remédios'
       }[kind] || '';
       if (kind === 'cry') {
         this.cryCache = this.analyzeCry();
         this.form = {};
       } else if (kind === 'backfill') {
         if (!this.backfill.date) this.backfill.date = new Date().toISOString().slice(0,10);
+        // Pré-preencher quantidades a partir das metas (editáveis depois)
+        this.backfill.nFeedings = this.settings.target_feedings_per_day || 10;
+        this.backfill.nWet = this.settings.min_wet_diapers || 6;
+        if (this.backfill.nPoop == null) this.backfill.nPoop = 2;
+        if (this.backfill.nNaps == null) this.backfill.nNaps = 4;
         this.form = {};
       } else {
         this.form = existing ? this.recordToForm(existing) : this.defaultForm(kind);
@@ -1684,6 +1937,7 @@ function app() {
         case 'feeding': return { ...base, method:'mama', side:'E', duration_min:15, ml:0, ml_materno:0, ml_formula:0, source:'materno', notes_chips:[], notes:'' };
         case 'diaper':  return { ...base, diaperKind:'wet', urine_color:'clara', poop_desc:'', poop_color:'' };
         case 'weight':  return { ...base, grams: this.lastWeight?.data?.grams || this.profile.birth_weight_g || 0, notes:'' };
+        case 'height':  return { ...base, cm: this.lastHeight?.data?.cm || 0, notes:'' };
         case 'pumping': return { ...base, ml:0, side:'ambos', duration_min:12 };
         case 'promil':  return { ...base, sachets:1 };
         case 'colic':   return { ...base, severity:3, duration_min:10, helped:[], notes:'' };
@@ -1753,13 +2007,12 @@ function app() {
         return t.getTime();
       };
 
-      // Mamadas — distribuídas de manhã à noite, com uma noturna
+      // Mamadas — distribuídas de manhã à noite, com algumas noturnas
       if (this.backfill.feedings) {
-        const n = this.settings.target_feedings_per_day || 10;
-        // 8 durante o dia entre 07h e 22h, restantes à noite
-        const daytime = Math.max(6, n - 2);
-        const nightExtra = n - daytime;
-        const dayGap = (22-7) * 60 / (daytime - 1);
+        const n = Math.max(0, this.backfill.nFeedings || 0);
+        const nightExtra = Math.min(2, Math.max(0, n - 6));
+        const daytime = n - nightExtra;
+        const dayGap = daytime > 1 ? (22-7) * 60 / (daytime - 1) : 0;
         for (let i=0; i<daytime; i++) {
           const t = at(7) + i * dayGap * 60000;
           if (t <= cutoff) newRecs.push({
@@ -1776,10 +2029,10 @@ function app() {
         }
       }
 
-      // Fraldas — molhadas ao longo do dia + 2 cocós
+      // Fraldas — molhadas ao longo do dia + N cocós
       if (this.backfill.diapers) {
-        const wets = Math.max(6, this.settings.min_wet_diapers || 6);
-        const wetGap = 24 * 60 / wets;
+        const wets = Math.max(0, this.backfill.nWet || 0);
+        const wetGap = wets > 0 ? 24 * 60 / wets : 0;
         for (let i=0; i<wets; i++) {
           const t = at(6) + i * wetGap * 60000;
           if (t <= cutoff) newRecs.push({
@@ -1787,8 +2040,10 @@ function app() {
             data:{ diaperKind:'wet', urine_color:'clara', autogen:true }
           });
         }
-        for (const h of [10, 18]) {
-          const t = at(h);
+        const nPoop = Math.max(0, this.backfill.nPoop || 0);
+        const poopGap = nPoop > 0 ? (20-9) / nPoop : 0;
+        for (let i=0; i<nPoop; i++) {
+          const t = at(Math.round(9 + i*poopGap + poopGap/2));
           if (t <= cutoff) newRecs.push({
             id: uuid(), type:'diaper', timestamp: new Date(t).toISOString(),
             data:{ diaperKind:'poop', poop_desc:'pastosa', poop_color:'mostarda', autogen:true }
@@ -1796,11 +2051,13 @@ function app() {
         }
       }
 
-      // Sono — 4 sonos diurnos de ~1h30 + estirão noturno ~4h
+      // Sono — N sonos diurnos de ~1h30 + estirão noturno ~4h
       if (this.backfill.sleeps) {
-        const naps = [ [8,30], [11,30], [14,0], [17,0] ]; // hora início
-        for (const [h,mm] of naps) {
-          const s = at(h, mm);
+        const nNaps = Math.max(0, this.backfill.nNaps || 0);
+        const napGap = nNaps > 0 ? (19-8) / nNaps : 0;
+        for (let i=0; i<nNaps; i++) {
+          const startH = 8 + i*napGap;
+          const s = at(Math.floor(startH), Math.round((startH%1)*60));
           const e = s + 90*60000;
           if (s <= cutoff) newRecs.push({
             id: uuid(), type:'sleep', timestamp: new Date(s).toISOString(),
@@ -1986,6 +2243,13 @@ function app() {
         firstIdx===-1 || i<firstIdx ? null : firstW + (i-firstIdx)*this.settings.min_weight_gain_g_per_day
       );
 
+      const heightsAll = this.records.filter(r => r.type==='height').sort((a,b) => new Date(a.timestamp)-new Date(b.timestamp));
+      const heightPerDay = dayKeys.map(d => {
+        const h = heightsAll.filter(r => new Date(r.timestamp).setHours(0,0,0,0)===d.getTime())
+                            .sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp))[0];
+        return h ? h.data.cm : null;
+      });
+
       const vl = { enabled: showLabels, dark: isDark };
 
       this._chart('chartWeight', {
@@ -2005,6 +2269,12 @@ function app() {
           scales:{ x:{ grid:{ color:grid } }, y:{ grid:{ color:grid } } },
           plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } }, valueLabels: vl }
         }
+      });
+
+      if (heightsAll.length) this._chart('chartHeight', {
+        type:'line',
+        data:{ labels, datasets:[{ label:'Altura (cm)', data:heightPerDay, borderColor:'#B07BC7', backgroundColor:'rgba(176,123,199,.25)', tension:0, fill:false, pointRadius:5, pointBackgroundColor:'#B07BC7', spanGaps:true }] },
+        options:{ maintainAspectRatio:false, responsive:true, plugins:{ legend:{ display:false }, valueLabels: vl }, scales:{ x:{ grid:{ color:grid } }, y:{ grid:{ color:grid } } } }
       });
 
       this._chart('chartFeedings', {
@@ -2234,7 +2504,7 @@ function app() {
     },
 
     get countByType() {
-      const o = { feeding:0, diaper:0, weight:0, pumping:0, promil:0, colic:0, note:0, sleep:0 };
+      const o = { feeding:0, diaper:0, weight:0, height:0, pumping:0, promil:0, colic:0, note:0, sleep:0, med:0 };
       for (const r of this.records) if (o[r.type] !== undefined) o[r.type]++;
       return o;
     },
