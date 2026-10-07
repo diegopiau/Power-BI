@@ -1322,15 +1322,17 @@ tailwind.config = {
 </template>
 
 <!-- Toast (com undo) -->
-<div x-show="toast.msg" x-transition class="fixed left-1/2 -translate-x-1/2 bottom-24 z-50 px-4 py-2 rounded-full bg-slate-900 text-white text-sm shadow-lg flex items-center gap-3">
+<!-- O container não recebe toques (pointer-events-none): só o botão Desfazer é
+     tocável, para o toast nunca "roubar" toques a botões por baixo dele. -->
+<div x-show="toast.msg" x-transition class="pointer-events-none fixed left-1/2 -translate-x-1/2 bottom-28 z-50 px-4 py-2 rounded-full bg-slate-900 text-white text-sm shadow-lg flex items-center gap-3 max-w-[92vw]">
   <span x-text="toast.msg"></span>
-  <button x-show="toast.undo" class="text-mint-200 font-semibold" @click="doUndo()">Desfazer</button>
+  <button x-show="toast.undo" class="pointer-events-auto text-mint-200 font-semibold px-2 py-1 -my-1 rounded-lg" @click="doUndo()">Desfazer</button>
 </div>
 
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v18';
+    const CACHE = 'bernardo-v19';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1380,7 +1382,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v18';
+const APP_VERSION = 'v19';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1878,10 +1880,10 @@ function app() {
       }
       const rec = { id: uuid(), type:'med', timestamp: new Date().toISOString(), data:{ medId: m.id, name: m.name, notes:'' } };
       this.records = [...this.records, rec];
-      this.showToast(`✓ ${m.name} registado${warn}`, () => {
-        this.records = this.records.filter(x => x.id !== rec.id);
-        this.showToast(`${m.name} removido`);
-      });
+      // Sem "Desfazer" aqui de propósito: dar remédios é a ação mais repetida e
+      // o botão do toast ficava por cima do remédio seguinte. Para corrigir uma
+      // dose, apaga-se o registo no Histórico.
+      this.showToast(`✓ ${m.name} registado${warn}`);
     },
     addMed() {
       this.meds = [...this.meds, { id: uuid(), name:'', icon:'💊', freq:'daily', perDay:1, intervalHours:24, note:'', ironTiming:false, prn:false, active:true, endDate:null }];
