@@ -1318,7 +1318,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v15';
+    const CACHE = 'bernardo-v16';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1368,7 +1368,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1454,7 +1454,7 @@ function app() {
     meds: [],
     // ===== Sincronização (Supabase) =====
     sync: { status:'off', user:null, email:'', password:'', error:'', busy:false },
-    _sb: null, _uid: null, _syncReady: false, _recShadow: {}, _docShadow: {}, _ch: null,
+    _sb: null, _uid: null, _syncReady: false, _recShadow: {}, _docShadow: {}, _ch: null, _tombstones: new Set(),
     form: {},
     calc: { weight: 2715, mlPerKg: 150, meals: 8 },
     chartRange: '14',
@@ -1574,6 +1574,9 @@ function app() {
       if (s) Object.assign(this.settings, JSON.parse(s));
       const r = localStorage.getItem('bernardo_records');
       if (r) this.records = JSON.parse(r);
+      // Lista persistente de registos apagados (impede ressurreição após reabrir/sync)
+      try { const tb = localStorage.getItem('bernardo_tombstones'); this._tombstones = new Set(tb ? JSON.parse(tb) : []); } catch(_) { this._tombstones = new Set(); }
+      if (this._tombstones.size) this.records = this.records.filter(x => !this._tombstones.has(x.id));
       const md = localStorage.getItem('bernardo_meds');
       if (md) this.meds = JSON.parse(md);
       else this.meds = this.defaultMeds();  // semear com os remédios atuais na 1ª vez
@@ -1663,18 +1666,21 @@ function app() {
     async pullAll() {
       const { data, error } = await this._sb.from('bernardo_sync').select('*');
       if (error) throw error;
-      const cloudRecs = {}, cloudDocs = {}, cloudTombs = new Set();
+      const cloudRecs = {}, cloudDocs = {}, cloudTombs = new Set(), cloudAlive = new Set();
       for (const row of (data||[])) {
-        if (row.kind === 'record') { if (row.deleted) cloudTombs.add(row.id); else cloudRecs[row.id] = row.payload; }
+        if (row.kind === 'record') { if (row.deleted) cloudTombs.add(row.id); else { cloudRecs[row.id] = row.payload; cloudAlive.add(row.id); } }
         else if (row.kind === 'doc') cloudDocs[row.id] = row.payload;
       }
-      // Merge registos: cloud + locais genuinamente novos (nem na cloud nem apagados)
+      // A cloud confirma tombstones → juntar à lista local persistente
+      if (cloudTombs.size) this.addTombstones([...cloudTombs]);
+      // Merge registos: cloud vivo (exceto o que já apagámos) + locais genuinamente novos
       const localById = {}; for (const r of this.records) localById[r.id] = r;
-      const merged = { ...cloudRecs };
+      const merged = {};
+      for (const id in cloudRecs) if (!this._tombstones.has(id)) merged[id] = cloudRecs[id];
       const toPush = [];
       for (const id in localById) {
-        if (cloudTombs.has(id)) continue;                 // foi apagado — não ressuscitar
-        if (!(id in cloudRecs)) { merged[id] = localById[id]; toPush.push(localById[id]); }
+        if (this._tombstones.has(id)) continue;           // já apagado — não ressuscitar
+        if (!(id in merged)) { merged[id] = localById[id]; toPush.push(localById[id]); }
       }
       this.records = Object.values(merged).sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       // Docs: se existe na cloud adota; senão fica por enviar
@@ -1685,12 +1691,15 @@ function app() {
       }
       // Construir shadows (estado conhecido da cloud, incluindo tombstones)
       this._recShadow = {}; for (const r of this.records) this._recShadow[r.id] = JSON.stringify(r);
-      for (const id of cloudTombs) this._recShadow[id] = DELMARK;
+      for (const id of this._tombstones) this._recShadow[id] = DELMARK;
       this._docShadow = { profile: JSON.stringify(this.profile), settings: JSON.stringify(this.settings), meds: JSON.stringify(this.meds) };
       this._syncReady = true;
       // Enviar o que só existe localmente
       if (toPush.length) await this._sb.from('bernardo_sync').upsert(toPush.map(r => this.recRow(r)), { onConflict:'user_id,id' });
       for (const key of missingDocs) await this._sb.from('bernardo_sync').upsert(this.docRow(key), { onConflict:'user_id,id' });
+      // Re-tombar na cloud o que apagámos mas ainda está vivo lá (ex.: reenviado por um telemóvel antigo)
+      const reTomb = [...this._tombstones].filter(id => cloudAlive.has(id));
+      if (reTomb.length) await this._sb.from('bernardo_sync').upsert(reTomb.map(id => this.tombRow(id)), { onConflict:'user_id,id' });
     },
     subscribeRealtime() {
       if (this._ch) { try { this._sb.removeChannel(this._ch); } catch(_){} }
@@ -1712,11 +1721,19 @@ function app() {
     applyRemoteRecord(row) {
       if (row.deleted) {
         // tombstone remoto — remover localmente e marcar para não re-enviar
+        this.addTombstones([row.id]);
         this.records = this.records.filter(r => r.id !== row.id);
         this._recShadow[row.id] = DELMARK;
         return;
       }
       const rec = row.payload;
+      // Se já apagámos este id, ignorar o re-add e re-tombar na cloud (telemóvel antigo)
+      if (this._tombstones.has(rec.id)) {
+        this._recShadow[rec.id] = DELMARK;
+        this.records = this.records.filter(r => r.id !== rec.id);
+        if (this._sb) this._sb.from('bernardo_sync').upsert(this.tombRow(rec.id), { onConflict:'user_id,id' }).then(()=>{}, ()=>{});
+        return;
+      }
       this._recShadow[rec.id] = JSON.stringify(rec);
       const idx = this.records.findIndex(r => r.id === rec.id);
       if (idx >= 0) this.records = this.records.map(r => r.id===rec.id ? rec : r);
@@ -1731,6 +1748,9 @@ function app() {
     recRow(r) { return { id:r.id, user_id:this._uid, kind:'record', payload:r, updated_at:new Date().toISOString(), deleted:false }; },
     tombRow(id) { return { id, user_id:this._uid, kind:'record', payload:{ id }, updated_at:new Date().toISOString(), deleted:true }; },
     docRow(key) { return { id:key, user_id:this._uid, kind:'doc', payload:(key==='meds'?this.meds:this[key]), updated_at:new Date().toISOString(), deleted:false }; },
+    _saveTombstones() { try { localStorage.setItem('bernardo_tombstones', JSON.stringify([...this._tombstones])); } catch(_){} },
+    addTombstones(ids) { for (const id of ids) this._tombstones.add(id); this._saveTombstones(); },
+    removeTombstones(ids) { for (const id of ids) this._tombstones.delete(id); this._saveTombstones(); },
     pushRecordChanges() {
       if (!this._syncReady || !this._sb) return;
       const cur = {}; for (const r of this.records) cur[r.id] = JSON.stringify(r);
@@ -1739,6 +1759,7 @@ function app() {
       const toTomb = [];
       // ids que tínhamos (conteúdo real no shadow) e já não estão → tombstone
       for (const id in this._recShadow) if (this._recShadow[id] !== DELMARK && !(id in cur)) toTomb.push(id);
+      if (toTomb.length) this.addTombstones(toTomb);
       if (toUpsert.length) this._sb.from('bernardo_sync').upsert(toUpsert.map(r => this.recRow(r)), { onConflict:'user_id,id' }).then(()=>{}, ()=>{});
       if (toTomb.length) this._sb.from('bernardo_sync').upsert(toTomb.map(id => this.tombRow(id)), { onConflict:'user_id,id' }).then(()=>{}, ()=>{});
       // atualizar shadow: conteúdo atual + manter tombstones
@@ -2050,6 +2071,7 @@ function app() {
       this.records = this.records.filter(r => !idSet.has(r.id));
       this.selected = {}; this.selectMode = false;
       this.showToast(`${removed.length} registos apagados`, () => {
+        this.removeTombstones(removed.map(r => r.id));
         this.records = [...this.records, ...removed];
         this.showToast('Restaurados');
       });
@@ -2384,6 +2406,7 @@ function app() {
       if (!rec) return;
       this.records = this.records.filter(r => r.id !== id);
       this.showToast(`${this.labelType(rec.type)} apagada`, () => {
+        this.removeTombstones([rec.id]);
         this.records = [...this.records, rec];
         this.showToast('Restaurada');
       });
