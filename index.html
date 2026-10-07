@@ -1289,6 +1289,12 @@ tailwind.config = {
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-sky-200 dark:bg-sky-500/30 text-sm font-medium" @click="closeSheet(); openSheet('sync')">☁️ Sincronização (2 telemóveis)</button>
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-mint-200 dark:bg-mint-500/30 text-sm font-medium" @click="closeSheet(); openSheet('medsconfig')">💊 Gerir remédios</button>
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-indigo-200 dark:bg-indigo-500/30 text-sm font-medium" @click="closeSheet(); openSheet('backfill')">🤖 Preencher dia padrão (auto)</button>
+                <button class="btn-tap col-span-2 py-3 rounded-xl bg-rose-100 dark:bg-rose-400/20 text-sm font-medium" @click="deleteAllAutogen()">
+                  🧹 Apagar TODOS os automáticos (<span x-text="autogenCount"></span>)
+                </button>
+                <button class="btn-tap col-span-2 py-3 rounded-xl bg-rose-100 dark:bg-rose-400/20 text-sm font-medium" @click="dedupeRecords()">
+                  🧹 Remover duplicados (<span x-text="duplicateCount"></span>)
+                </button>
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-amber-200 dark:bg-amber-500/30 text-sm font-medium" @click="hardReload()">🔄 Atualizar app (limpar cache)</button>
                 <button class="btn-tap col-span-2 py-3 rounded-xl bg-rose-200 dark:bg-rose-400/30 text-sm font-medium" @click="clearAll()">🗑️ Apagar tudo (duplo)</button>
               </div>
@@ -1324,7 +1330,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v17';
+    const CACHE = 'bernardo-v18';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1374,7 +1380,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v17';
+const APP_VERSION = 'v18';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1821,21 +1827,28 @@ function app() {
       if (m.freq === 'interval') return Math.max(1, Math.round(24 / (m.intervalHours || 24)));
       return m.perDay || 1;
     },
-    medRecordsToday(medId) {
+    // Um registo pertence a este remédio por id OU por nome — os ids podem
+    // divergir entre telemóveis (cada um semeia o regime na 1ª utilização).
+    medMatches(r, med) {
+      if (r.type !== 'med') return false;
+      if (r.data.medId === med.id) return true;
+      return (r.data.name||'').trim().toLowerCase() === (med.name||'').trim().toLowerCase();
+    },
+    medRecordsToday(med) {
       const day = this.startOfToday();
-      return this.records.filter(r => r.type==='med' && r.data.medId===medId &&
+      return this.records.filter(r => this.medMatches(r, med) &&
         new Date(r.timestamp).getTime() >= day && new Date(r.timestamp).getTime() < day+86400000)
         .sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
     },
-    lastMedRecord(medId) {
-      return this.records.filter(r => r.type==='med' && r.data.medId===medId)
+    lastMedRecord(med) {
+      return this.records.filter(r => this.medMatches(r, med))
         .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
     },
     get medsScheduled() {
       return this.meds.filter(m => this.medEndActive(m) && !m.prn).map(m => {
-        const given = this.medRecordsToday(m.id).length;
+        const given = this.medRecordsToday(m).length;
         const needed = this.dosesNeeded(m);
-        const last = this.lastMedRecord(m.id);
+        const last = this.lastMedRecord(m);
         let nextDueMs = null, overdue = false;
         if (given < needed) {
           if (m.freq === 'interval' && last) {
@@ -1851,22 +1864,21 @@ function app() {
     },
     get medsPrn() {
       return this.meds.filter(m => this.medEndActive(m) && m.prn).map(m => {
-        const last = this.lastMedRecord(m.id);
+        const last = this.lastMedRecord(m);
         return { m, last };
       });
     },
-    logMed(m, forcePast) {
-      // Aviso específico do ferro: idealmente 1h longe das mamadas
-      if (m.ironTiming && !forcePast) {
-        const feeds = this.records.filter(r => r.type==='feeding');
-        const near = feeds.some(r => Math.abs(this._now - new Date(r.timestamp).getTime()) < 60*60000);
-        if (near) {
-          if (!confirm('⚠️ Houve uma mamada há menos de 1h. O ferro absorve melhor longe das mamadas (1h antes ou depois). Registar mesmo assim?')) return;
-        }
+    logMed(m) {
+      // Aviso do ferro: regista na mesma, mas avisa (confirm() bloqueante não
+      // é fiável em PWA no iOS e podia cancelar o registo em silêncio)
+      let warn = '';
+      if (m.ironTiming) {
+        const near = this.records.some(r => r.type==='feeding' && Math.abs(this._now - new Date(r.timestamp).getTime()) < 60*60000);
+        if (near) warn = ' ⚠️ mamada há <1h — absorve melhor afastado';
       }
       const rec = { id: uuid(), type:'med', timestamp: new Date().toISOString(), data:{ medId: m.id, name: m.name, notes:'' } };
       this.records = [...this.records, rec];
-      this.showToast(`✓ ${m.name} registado`, () => {
+      this.showToast(`✓ ${m.name} registado${warn}`, () => {
         this.records = this.records.filter(x => x.id !== rec.id);
         this.showToast(`${m.name} removido`);
       });
@@ -2073,6 +2085,53 @@ function app() {
       return Object.values(groups);
     },
     get selectedCount() { return Object.values(this.selected).filter(Boolean).length; },
+    get autogenCount() { return this.records.filter(r => r.data && r.data.autogen).length; },
+    // Assinatura de um registo para detetar duplicados (mesmo tipo, mesmo
+    // minuto e mesmo conteúdo) — os ids diferem porque vieram de execuções
+    // diferentes do "dia padrão" ou de telemóveis diferentes.
+    recSignature(r) {
+      const d = { ...(r.data||{}) }; delete d.autogen;
+      const minute = new Date(r.timestamp); minute.setSeconds(0,0);
+      return r.type + '|' + minute.getTime() + '|' + JSON.stringify(d);
+    },
+    get duplicateCount() {
+      const seen = new Set(); let dups = 0;
+      for (const r of [...this.records].sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp))) {
+        const s = this.recSignature(r);
+        if (seen.has(s)) dups++; else seen.add(s);
+      }
+      return dups;
+    },
+    deleteAllAutogen() {
+      const removed = this.records.filter(r => r.data && r.data.autogen);
+      if (!removed.length) { this.showToast('Não há registos automáticos.'); return; }
+      const ids = removed.map(r => r.id);
+      this.addTombstones(ids);
+      const idSet = new Set(ids);
+      this.records = this.records.filter(r => !idSet.has(r.id));
+      this.showToast(`${removed.length} automáticos apagados`, () => {
+        this.removeTombstones(ids);
+        this.records = [...this.records, ...removed];
+        this.showToast('Restaurados');
+      });
+    },
+    dedupeRecords() {
+      const seen = new Set(); const removed = [];
+      const keep = [];
+      for (const r of [...this.records].sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp))) {
+        const s = this.recSignature(r);
+        if (seen.has(s)) removed.push(r); else { seen.add(s); keep.push(r); }
+      }
+      if (!removed.length) { this.showToast('Sem duplicados.'); return; }
+      const ids = removed.map(r => r.id);
+      this.addTombstones(ids);
+      this.records = keep;
+      this.showToast(`${removed.length} duplicados removidos`, () => {
+        this.removeTombstones(ids);
+        this.records = [...this.records, ...removed];
+        this.showToast('Restaurados');
+      });
+    },
     toggleSelect(id) { this.selected = { ...this.selected, [id]: !this.selected[id] }; },
     selectDay(group) {
       const s = { ...this.selected };
@@ -2088,9 +2147,9 @@ function app() {
     deleteSelected() {
       const ids = Object.keys(this.selected).filter(id => this.selected[id]);
       if (!ids.length) return;
-      if (!confirm(`Apagar ${ids.length} registo(s)? Podes desfazer logo a seguir.`)) return;
       const idSet = new Set(ids);
       const removed = this.records.filter(r => idSet.has(r.id));
+      this.addTombstones(ids);   // marcar como apagados já aqui, sem depender do sync
       this.records = this.records.filter(r => !idSet.has(r.id));
       this.selected = {}; this.selectMode = false;
       this.showToast(`${removed.length} registos apagados`, () => {
@@ -2427,6 +2486,7 @@ function app() {
     deleteRecord(id) {
       const rec = this.records.find(r => r.id===id);
       if (!rec) return;
+      this.addTombstones([id]);  // marcar como apagado já aqui, sem depender do sync
       this.records = this.records.filter(r => r.id !== id);
       this.showToast(`${this.labelType(rec.type)} apagada`, () => {
         this.removeTombstones([rec.id]);
@@ -2448,6 +2508,7 @@ function app() {
     clearAll() {
       if (!confirm('Apagar TODOS os registos? Esta ação é irreversível.')) return;
       if (!confirm('Tens a certeza absoluta? Confirmação dupla.')) return;
+      this.addTombstones(this.records.map(r => r.id));  // para não voltarem pela cloud
       this.records = [];
       this.showToast('Todos os registos apagados');
     },
