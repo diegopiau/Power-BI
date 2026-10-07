@@ -1066,8 +1066,14 @@ tailwind.config = {
             <template x-if="sync.user">
               <div class="space-y-3">
                 <div class="text-xs text-slate-600 dark:text-slate-300">
-                  Ligado. Qualquer registo feito num telemóvel aparece no outro automaticamente. Para parar a sincronização neste dispositivo, termina a sessão.
+                  Ligado. Qualquer registo feito num telemóvel aparece no outro automaticamente.
                 </div>
+                <div class="p-3 rounded-xl bg-slate-100 dark:bg-night-2 text-xs num-input space-y-1">
+                  <div>App: <b x-text="APP_VERSION"></b> · registos: <b x-text="records.length"></b> · apagados: <b x-text="_tombstones.size"></b></div>
+                  <template x-if="sync.error"><div class="text-rose-400 dark:text-rose-300">último erro: <span x-text="sync.error"></span></div></template>
+                </div>
+                <button class="btn-tap w-full py-3 rounded-xl bg-sky-200 dark:bg-sky-500/30 font-medium" @click="syncSelfTest()">🧪 Testar escrita na cloud</button>
+                <template x-if="sync.test"><div class="text-sm text-center" x-text="sync.test"></div></template>
                 <button class="btn-tap w-full py-3 rounded-xl bg-rose-200 dark:bg-rose-400/30 font-medium" @click="syncSignOut()">Terminar sessão neste dispositivo</button>
               </div>
             </template>
@@ -1318,7 +1324,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v16';
+    const CACHE = 'bernardo-v17';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1368,7 +1374,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v16';
+const APP_VERSION = 'v17';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1453,7 +1459,8 @@ function app() {
     // Regime de medicação — definições (separado dos registos de toma)
     meds: [],
     // ===== Sincronização (Supabase) =====
-    sync: { status:'off', user:null, email:'', password:'', error:'', busy:false },
+    sync: { status:'off', user:null, email:'', password:'', error:'', busy:false, test:'' },
+    _startingSync: false,
     _sb: null, _uid: null, _syncReady: false, _recShadow: {}, _docShadow: {}, _ch: null, _tombstones: new Set(),
     form: {},
     calc: { weight: 2715, mlPerKg: 150, meals: 8 },
@@ -1652,6 +1659,8 @@ function app() {
       return e?.message || 'Erro de ligação.';
     },
     async startSync(user) {
+      if (this._startingSync || this._uid === user.id) return; // evitar arranque duplo (getSession + onAuthStateChange)
+      this._startingSync = true;
       this._uid = user.id;
       this.sync.user = user.email || user.id;
       this.sync.status = 'connecting';
@@ -1661,7 +1670,7 @@ function app() {
         this.sync.status = 'online';
       } catch (e) {
         this.sync.status = 'error'; this.sync.error = String(e?.message || e);
-      }
+      } finally { this._startingSync = false; }
     },
     async pullAll() {
       const { data, error } = await this._sb.from('bernardo_sync').select('*');
@@ -1760,8 +1769,8 @@ function app() {
       // ids que tínhamos (conteúdo real no shadow) e já não estão → tombstone
       for (const id in this._recShadow) if (this._recShadow[id] !== DELMARK && !(id in cur)) toTomb.push(id);
       if (toTomb.length) this.addTombstones(toTomb);
-      if (toUpsert.length) this._sb.from('bernardo_sync').upsert(toUpsert.map(r => this.recRow(r)), { onConflict:'user_id,id' }).then(()=>{}, ()=>{});
-      if (toTomb.length) this._sb.from('bernardo_sync').upsert(toTomb.map(id => this.tombRow(id)), { onConflict:'user_id,id' }).then(()=>{}, ()=>{});
+      if (toUpsert.length) this._sb.from('bernardo_sync').upsert(toUpsert.map(r => this.recRow(r)), { onConflict:'user_id,id' }).then(({error})=>{ if(error) this.sync.error = 'escrita: '+error.message; }, (e)=>{ this.sync.error = 'escrita: '+(e?.message||e); });
+      if (toTomb.length) this._sb.from('bernardo_sync').upsert(toTomb.map(id => this.tombRow(id)), { onConflict:'user_id,id' }).then(({error})=>{ if(error) this.sync.error = 'apagar: '+error.message; }, (e)=>{ this.sync.error = 'apagar: '+(e?.message||e); });
       // atualizar shadow: conteúdo atual + manter tombstones
       const next = { ...cur };
       for (const id in this._recShadow) if (this._recShadow[id] === DELMARK && !(id in next)) next[id] = DELMARK;
@@ -1777,6 +1786,20 @@ function app() {
     },
     get syncLabel() {
       return { off:'desligado', connecting:'a ligar…', online:'sincronizado', offline:'sem rede', error:'erro' }[this.sync.status] || '';
+    },
+    async syncSelfTest() {
+      if (!this._sb || !this._uid) { this.sync.test = '⚠️ Entra primeiro.'; return; }
+      this.sync.test = 'a testar…';
+      const id = 'selftest-' + uuid();
+      try {
+        let r = await this._sb.from('bernardo_sync').upsert({ id, user_id:this._uid, kind:'test', payload:{ t: Date.now() }, updated_at:new Date().toISOString(), deleted:false }, { onConflict:'user_id,id' });
+        if (r.error) { this.sync.test = '❌ escrita falhou: ' + r.error.message; return; }
+        r = await this._sb.from('bernardo_sync').select('*').eq('id', id);
+        if (r.error) { this.sync.test = '❌ leitura falhou: ' + r.error.message; return; }
+        const ok = (r.data || []).length === 1;
+        await this._sb.from('bernardo_sync').delete().eq('id', id).eq('user_id', this._uid);
+        this.sync.test = ok ? '✅ Escrita + leitura OK na cloud.' : '❌ Escreveu mas não leu de volta (RLS?).';
+      } catch (e) { this.sync.test = '❌ ' + (e?.message || e); }
     },
 
     // ===== REMÉDIOS =====
