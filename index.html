@@ -1070,8 +1070,10 @@ tailwind.config = {
                 </div>
                 <div class="p-3 rounded-xl bg-slate-100 dark:bg-night-2 text-xs num-input space-y-1">
                   <div>App: <b x-text="APP_VERSION"></b> · registos: <b x-text="records.length"></b> · apagados: <b x-text="_tombstones.size"></b></div>
+                  <div>Última sincronização: <b x-text="lastSyncText"></b> · tempo real: <b x-text="sync.channel === 'SUBSCRIBED' ? 'ligado' : (sync.channel || '—')"></b></div>
                   <template x-if="sync.error"><div class="text-rose-400 dark:text-rose-300">último erro: <span x-text="sync.error"></span></div></template>
                 </div>
+                <button class="btn-tap w-full py-3 rounded-xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold" @click="ensureRealtime(); refreshNow(true)">🔄 Sincronizar agora</button>
                 <button class="btn-tap w-full py-3 rounded-xl bg-sky-200 dark:bg-sky-500/30 font-medium" @click="syncSelfTest()">🧪 Testar escrita na cloud</button>
                 <template x-if="sync.test"><div class="text-sm text-center" x-text="sync.test"></div></template>
                 <button class="btn-tap w-full py-3 rounded-xl bg-rose-200 dark:bg-rose-400/30 font-medium" @click="syncSignOut()">Terminar sessão neste dispositivo</button>
@@ -1332,7 +1334,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v19';
+    const CACHE = 'bernardo-v20';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1382,7 +1384,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v19';
+const APP_VERSION = 'v20';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1467,8 +1469,8 @@ function app() {
     // Regime de medicação — definições (separado dos registos de toma)
     meds: [],
     // ===== Sincronização (Supabase) =====
-    sync: { status:'off', user:null, email:'', password:'', error:'', busy:false, test:'' },
-    _startingSync: false,
+    sync: { status:'off', user:null, email:'', password:'', error:'', busy:false, test:'', channel:'', lastSync:0 },
+    _startingSync: false, _refreshing: false, _pollT: null,
     _sb: null, _uid: null, _syncReady: false, _recShadow: {}, _docShadow: {}, _ch: null, _tombstones: new Set(),
     form: {},
     calc: { weight: 2715, mlPerKg: 150, meals: 8 },
@@ -1634,6 +1636,50 @@ function app() {
         if (session?.user) { if (!this._uid) this.startSync(session.user); }
         else { this._uid = null; this._syncReady = false; this.sync.status = 'off'; this.sync.user = null; }
       });
+
+      // Redes de segurança: o iOS mata o WebSocket quando o PWA vai para
+      // segundo plano, por isso não se pode depender só do realtime.
+      const onForeground = () => {
+        if (document.visibilityState !== 'visible') return;
+        this.ensureRealtime();
+        this.refreshNow(true);
+      };
+      document.addEventListener('visibilitychange', onForeground);
+      window.addEventListener('focus', onForeground);
+      window.addEventListener('pageshow', onForeground);
+      // Poll leve enquanto a app está à frente
+      this._pollT = setInterval(() => {
+        if (document.visibilityState === 'visible') this.refreshNow(false);
+      }, 25000);
+    },
+    // Garante que o canal realtime está ligado (re-subscreve se caiu)
+    ensureRealtime() {
+      if (!this._sb || !this._uid || !this._syncReady) return;
+      if (this.sync.channel !== 'SUBSCRIBED') this.subscribeRealtime();
+    },
+    // full=true faz reconciliação completa; full=false só traz as alterações
+    async refreshNow(full) {
+      if (!this._sb || !this._uid || !this._syncReady || this._refreshing) return;
+      this._refreshing = true;
+      try {
+        if (full) await this.pullAll(); else await this.pullDelta();
+        this.sync.lastSync = Date.now();
+        if (this.sync.status === 'offline') this.sync.status = 'online';
+      } catch (e) {
+        this.sync.error = 'sync: ' + (e?.message || e);
+      } finally { this._refreshing = false; }
+    },
+    // Traz só as linhas alteradas desde a última sincronização. A margem de 5
+    // min absorve diferenças de relógio entre os telemóveis (updated_at é
+    // escrito pelo cliente).
+    async pullDelta() {
+      const since = new Date(Math.max(0, (this.sync.lastSync || 0) - 5*60*1000)).toISOString();
+      const { data, error } = await this._sb.from('bernardo_sync').select('*').gt('updated_at', since);
+      if (error) throw error;
+      for (const row of (data||[])) {
+        if (row.kind === 'record') this.applyRemoteRecord(row);
+        else if (row.kind === 'doc') this.applyRemoteDoc(row);
+      }
     },
     async syncSignIn() {
       if (!this._sb) return;
@@ -1717,6 +1763,13 @@ function app() {
       // Re-tombar na cloud o que apagámos mas ainda está vivo lá (ex.: reenviado por um telemóvel antigo)
       const reTomb = [...this._tombstones].filter(id => cloudAlive.has(id));
       if (reTomb.length) await this._sb.from('bernardo_sync').upsert(reTomb.map(id => this.tombRow(id)), { onConflict:'user_id,id' });
+      this.sync.lastSync = Date.now();
+    },
+    get lastSyncText() {
+      if (!this.sync.lastSync) return 'ainda não';
+      const s = Math.round((this._now - this.sync.lastSync)/1000);
+      if (s < 60) return 'há ' + Math.max(0, s) + 's';
+      return 'há ' + this.fmtDuration(Math.round(s/60));
     },
     subscribeRealtime() {
       if (this._ch) { try { this._sb.removeChannel(this._ch); } catch(_){} }
@@ -1731,8 +1784,9 @@ function app() {
           }
         })
         .subscribe((st) => {
-          if (st === 'SUBSCRIBED') { this.sync.status = 'online'; if (this._syncReady) this.pullAll().catch(()=>{}); }
-          else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { this.sync.status = 'offline'; }
+          this.sync.channel = st;
+          if (st === 'SUBSCRIBED') { this.sync.status = 'online'; if (this._syncReady) this.refreshNow(true); }
+          else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT' || st === 'CLOSED') { this.sync.status = 'offline'; }
         });
     },
     applyRemoteRecord(row) {
