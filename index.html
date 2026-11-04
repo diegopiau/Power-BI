@@ -1071,6 +1071,7 @@ tailwind.config = {
                 <div class="p-3 rounded-xl bg-slate-100 dark:bg-night-2 text-xs num-input space-y-1">
                   <div>App: <b x-text="APP_VERSION"></b> · registos: <b x-text="records.length"></b> · apagados: <b x-text="_tombstones.size"></b></div>
                   <div>Última sincronização: <b x-text="lastSyncText"></b> · tempo real: <b x-text="sync.channel === 'SUBSCRIBED' ? 'ligado' : (sync.channel || '—')"></b></div>
+                  <div>Linhas lidas da cloud: <b x-text="sync.cloudRows || '—'"></b></div>
                   <template x-if="sync.error"><div class="text-rose-400 dark:text-rose-300">último erro: <span x-text="sync.error"></span></div></template>
                 </div>
                 <button class="btn-tap w-full py-3 rounded-xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold" @click="ensureRealtime(); refreshNow(true)">🔄 Sincronizar agora</button>
@@ -1334,7 +1335,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v20';
+    const CACHE = 'bernardo-v21';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1384,7 +1385,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v20';
+const APP_VERSION = 'v21';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1469,7 +1470,7 @@ function app() {
     // Regime de medicação — definições (separado dos registos de toma)
     meds: [],
     // ===== Sincronização (Supabase) =====
-    sync: { status:'off', user:null, email:'', password:'', error:'', busy:false, test:'', channel:'', lastSync:0 },
+    sync: { status:'off', user:null, email:'', password:'', error:'', busy:false, test:'', channel:'', lastSync:0, cloudRows:0, lastFull:0 },
     _startingSync: false, _refreshing: false, _pollT: null,
     _sb: null, _uid: null, _syncReady: false, _recShadow: {}, _docShadow: {}, _ch: null, _tombstones: new Set(),
     form: {},
@@ -1647,9 +1648,13 @@ function app() {
       document.addEventListener('visibilitychange', onForeground);
       window.addEventListener('focus', onForeground);
       window.addEventListener('pageshow', onForeground);
-      // Poll leve enquanto a app está à frente
+      // Poll leve enquanto a app está à frente. A cada ~2 min faz uma
+      // reconciliação completa, porque `updated_at` é escrito pelo cliente e
+      // uma diferença de relógio entre telemóveis pode esconder linhas do delta.
       this._pollT = setInterval(() => {
-        if (document.visibilityState === 'visible') this.refreshNow(false);
+        if (document.visibilityState !== 'visible') return;
+        const full = (Date.now() - (this.sync.lastFull || 0)) > 120000;
+        this.refreshNow(full);
       }, 25000);
     },
     // Garante que o canal realtime está ligado (re-subscreve se caiu)
@@ -1672,10 +1677,28 @@ function app() {
     // Traz só as linhas alteradas desde a última sincronização. A margem de 5
     // min absorve diferenças de relógio entre os telemóveis (updated_at é
     // escrito pelo cliente).
+    // IMPORTANTE: o PostgREST devolve no máximo 1000 linhas por pedido. Com mais
+    // de 1000 linhas na tabela, um `select('*')` simples trunca e os registos
+    // mais recentes nunca chegam. Esta função pagina com .range() até esgotar.
+    // O .order('id') é obrigatório: sem ordenação estável as páginas podem
+    // repetir ou saltar linhas.
+    async fetchAllRows(makeQuery) {
+      const PAGE = 1000, out = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await makeQuery()
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const rows = data || [];
+        out.push(...rows);
+        if (rows.length < PAGE) break;
+        if (from > 200000) break; // travão de segurança
+      }
+      return out;
+    },
     async pullDelta() {
       const since = new Date(Math.max(0, (this.sync.lastSync || 0) - 5*60*1000)).toISOString();
-      const { data, error } = await this._sb.from('bernardo_sync').select('*').gt('updated_at', since);
-      if (error) throw error;
+      const data = await this.fetchAllRows(() => this._sb.from('bernardo_sync').select('*').gt('updated_at', since));
       for (const row of (data||[])) {
         if (row.kind === 'record') this.applyRemoteRecord(row);
         else if (row.kind === 'doc') this.applyRemoteDoc(row);
@@ -1727,8 +1750,8 @@ function app() {
       } finally { this._startingSync = false; }
     },
     async pullAll() {
-      const { data, error } = await this._sb.from('bernardo_sync').select('*');
-      if (error) throw error;
+      const data = await this.fetchAllRows(() => this._sb.from('bernardo_sync').select('*'));
+      this.sync.cloudRows = data.length;
       const cloudRecs = {}, cloudDocs = {}, cloudTombs = new Set(), cloudAlive = new Set();
       for (const row of (data||[])) {
         if (row.kind === 'record') { if (row.deleted) cloudTombs.add(row.id); else { cloudRecs[row.id] = row.payload; cloudAlive.add(row.id); } }
@@ -1764,6 +1787,7 @@ function app() {
       const reTomb = [...this._tombstones].filter(id => cloudAlive.has(id));
       if (reTomb.length) await this._sb.from('bernardo_sync').upsert(reTomb.map(id => this.tombRow(id)), { onConflict:'user_id,id' });
       this.sync.lastSync = Date.now();
+      this.sync.lastFull = Date.now();
     },
     get lastSyncText() {
       if (!this.sync.lastSync) return 'ainda não';
