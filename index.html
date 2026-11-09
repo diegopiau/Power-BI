@@ -1018,12 +1018,15 @@ tailwind.config = {
             <div>
               <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Altura / comprimento (cm)</label>
               <div class="flex items-center gap-2">
-                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.cm=Math.max(0,Math.round(((form.cm||0)-0.5)*10)/10)">−</button>
-                <input type="number" inputmode="decimal" step="0.1" class="flex-1 p-4 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-2xl font-semibold" x-model.number="form.cm" placeholder="48">
-                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.cm=Math.round(((form.cm||0)+0.5)*10)/10">+</button>
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="setCm(Math.max(0,(form.cm||0)-0.1))">−</button>
+                <!-- type="text" + inputmode="decimal": no iPhone em português o teclado
+                     escreve vírgula, que um type="number" pode descartar. -->
+                <input type="text" inputmode="decimal" autocomplete="off" class="flex-1 min-w-0 p-4 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-2xl font-semibold"
+                       x-model="form.cmText" @input="form.cm = parseDec(form.cmText)" placeholder="61,3">
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="setCm((form.cm||0)+0.1)">+</button>
               </div>
               <template x-if="lastHeight && form.cm">
-                <div class="mt-2 text-sm text-center num-input text-slate-500 dark:text-slate-400" x-text="`${(form.cm-lastHeight.data.cm>=0?'+':'')}${(form.cm-lastHeight.data.cm).toFixed(1)} cm desde ${fmtDate(lastHeight.timestamp)}`"></div>
+                <div class="mt-2 text-sm text-center num-input text-slate-500 dark:text-slate-400" x-text="`${(form.cm-lastHeight.data.cm>=0?'+':'')}${fmtDec((form.cm-lastHeight.data.cm).toFixed(1))} cm desde ${fmtDate(lastHeight.timestamp)}`"></div>
               </template>
             </div>
             <div>
@@ -1259,6 +1262,16 @@ tailwind.config = {
               </div>
             </template>
             <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Mamou para adormecer?</label>
+              <div class="grid grid-cols-3 gap-2">
+                <template x-for="o in [{v:'',l:'Não'},{v:'peito',l:'🤱 Peito'},{v:'mamadeira',l:'🍼 Mamadeira'}]" :key="'fb'+o.v">
+                  <button type="button" class="segbtn btn-tap py-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-sm font-medium"
+                          :data-active="(form.fed_before||'')===o.v" @click="form.fed_before=o.v" x-text="o.l"></button>
+                </template>
+              </div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">À noite, conta como despertar resolvido com mamada na análise do sono.</div>
+            </div>
+            <div>
               <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Notas</label>
               <input class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.notes" placeholder="ex.: colo, chuchou, acordou a chorar...">
             </div>
@@ -1489,7 +1502,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v22';
+    const CACHE = 'bernardo-v23';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1539,7 +1552,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v22';
+const APP_VERSION = 'v23';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1630,7 +1643,7 @@ const SleepAnalysis = (() => {
       let e = ongoing ? now : new Date(r.data.end).getTime();
       if (!isFinite(s) || !isFinite(e) || e <= s) continue;
       if (e - s > 16 * HOUR) e = s + 16 * HOUR; // registo esquecido aberto
-      raw.push({ s, e, ongoing });
+      raw.push({ s, e, ongoing, fed: r.data.fed_before || null }); // fed_before: 'peito' | 'mamadeira' | null
     }
     raw.sort((a, b) => a.s - b.s);
     const out = [];
@@ -1675,8 +1688,11 @@ const SleepAnalysis = (() => {
     let maxGap = 0;
     for (let i = 1; i < night.length; i++) {
       const gs = night[i - 1].e, ge = night[i].s;
-      const fed = feeds.some(f => f >= gs - 10 * MIN && f <= ge + 10 * MIN);
-      wakings.push({ at: gs, min: (ge - gs) / MIN, fed });
+      // Mamou neste despertar se: o sono seguinte foi marcado "mamou para adormecer"
+      // ou existe um registo de mamada nesse intervalo (±10 min).
+      const flag = night[i].fed;
+      const logged = feeds.some(f => f >= gs - 10 * MIN && f <= ge + 10 * MIN);
+      wakings.push({ at: gs, min: (ge - gs) / MIN, fed: !!flag || logged, fedKind: flag || (logged ? 'registo' : null) });
       maxGap = Math.max(maxGap, ge - gs);
     }
     const sleepMin = night.reduce((s, x) => s + (x.e - x.s), 0) / MIN;
@@ -1687,7 +1703,7 @@ const SleepAnalysis = (() => {
     const endsTooEarly = dayStart(wake) > D && wakeClock < 4 * 60;
     const endsSameEvening = dayStart(wake) === D;
     const complete = !ongoing && !endsTooEarly && !endsSameEvening && maxGap <= 3 * HOUR;
-    const nightFeeds = feeds.filter(f => f >= bed && f <= wake).length;
+    const nightFeeds = Math.max(feeds.filter(f => f >= bed && f <= wake).length, wakings.filter(w => w.fed).length);
     return {
       bed, wake, ongoing, complete,
       bedClock: clockMin(bed), wakeClock,
@@ -1789,6 +1805,8 @@ const SleepAnalysis = (() => {
       lastNapLate: napDays.filter(r => r.lastNapEndClock != null && r.lastNapEndClock > hm(G.lastNapEnd)).length,
       wakingsTotal: nights.reduce((t, n) => t + n.wakings.length, 0),
       wakingsFed: nights.reduce((t, n) => t + n.wakingsFed, 0),
+      fedPeito: nights.reduce((t, n) => t + n.wakings.filter(w => w.fedKind === 'peito').length, 0),
+      fedMamadeira: nights.reduce((t, n) => t + n.wakings.filter(w => w.fedKind === 'mamadeira').length, 0),
       nightFeedsAvg: avg(nights.map(n => n.nightFeeds)),
       trend: null
     };
@@ -1849,8 +1867,9 @@ const SleepAnalysis = (() => {
     // Mamadas nos despertares
     if (s.wakingsTotal >= 3) {
       const pct = Math.round(s.wakingsFed / s.wakingsTotal * 100);
+      const kinds = [s.fedPeito && `${s.fedPeito} no peito`, s.fedMamadeira && `${s.fedMamadeira} na mamadeira`].filter(Boolean).join(', ');
       out.push({ tone: 'info', icon: '🤱', title: 'Despertares com mamada',
-        text: `${pct}% dos despertares tiveram mamada registada (${s.wakingsFed} de ${s.wakingsTotal}). Média de ${one(s.nightFeedsAvg)} mamadas por noite.` });
+        text: `${pct}% dos despertares terminaram com mamada (${s.wakingsFed} de ${s.wakingsTotal}${kinds ? ': ' + kinds : ''}). Média de ${one(s.nightFeedsAvg)} mamadas por noite.` });
     }
     // Deitar
     if (s.bedAvg != null) {
@@ -2879,7 +2898,7 @@ function app() {
           return extras ? `${auto}${k} (${extras})` : `${auto}${k}`;
         }
         case 'weight': return `${d.grams} g${d.notes?' · '+d.notes:''}`;
-        case 'height': return `${d.cm} cm${d.notes?' · '+d.notes:''}`;
+        case 'height': return `${this.fmtDec(d.cm)} cm${d.notes?' · '+d.notes:''}`;
         case 'med': return `${d.name||'Remédio'}${d.notes?' · '+d.notes:''}`;
         case 'pumping': {
           const p = [`${d.ml||0} ml`];
@@ -2893,10 +2912,11 @@ function app() {
         case 'sleep': {
           if (!d.start) return '—';
           const s = new Date(d.start);
-          if (!d.end) return `A dormir desde ${this.fmtTime(d.start)}${d.autogen?' (auto)':''}`;
+          const fedTxt = d.fed_before === 'peito' ? ' · mamou no peito' : d.fed_before === 'mamadeira' ? ' · mamou na mamadeira' : '';
+          if (!d.end) return `A dormir desde ${this.fmtTime(d.start)}${fedTxt}${d.autogen?' (auto)':''}`;
           const e = new Date(d.end);
           const min = Math.max(0, Math.round((e-s)/60000));
-          return `${this.fmtDuration(min)} · ${this.fmtTime(d.start)} → ${this.fmtTime(d.end)}${d.autogen?' (auto)':''}`;
+          return `${this.fmtDuration(min)} · ${this.fmtTime(d.start)} → ${this.fmtTime(d.end)}${fedTxt}${d.autogen?' (auto)':''}`;
         }
         default: return JSON.stringify(d);
       }
@@ -2938,12 +2958,12 @@ function app() {
         case 'feeding': return { ...base, method:'mama', side:'E', duration_min:15, ml:0, ml_materno:0, ml_formula:0, source:'materno', notes_chips:[], notes:'' };
         case 'diaper':  return { ...base, diaperKind:'wet', urine_color:'clara', poop_desc:'', poop_color:'' };
         case 'weight':  return { ...base, grams: this.lastWeight?.data?.grams || this.profile.birth_weight_g || 0, notes:'' };
-        case 'height':  return { ...base, cm: this.lastHeight?.data?.cm || 0, notes:'' };
+        case 'height':  { const cm = this.lastHeight?.data?.cm || 0; return { ...base, cm, cmText: cm ? this.fmtDec(cm) : '', notes:'' }; }
         case 'pumping': return { ...base, ml:0, side:'ambos', duration_min:12 };
         case 'promil':  return { ...base, sachets:1 };
         case 'colic':   return { ...base, severity:3, duration_min:10, helped:[], notes:'' };
         case 'note':    return { ...base, text:'' };
-        case 'sleep':   return { ...base, start:'', end:'', notes:'' };
+        case 'sleep':   return { ...base, start:'', end:'', fed_before:'', notes:'' };
         default:        return base;
       }
     },
@@ -2955,8 +2975,13 @@ function app() {
         if (data.start) data.start = toLocal(data.start);
         if (data.end)   data.end   = toLocal(data.end);
       }
+      if (r.type === 'height') data.cmText = this.fmtDec(data.cm);
       return { ...data, whenChoice:'custom', timestamp: localISO };
     },
+    // Números decimais em formato PT (vírgula) ↔ número
+    parseDec(v) { const n = parseFloat(String(v ?? '').trim().replace(',', '.')); return isFinite(n) ? Math.round(n * 10) / 10 : null; },
+    fmtDec(n) { return n == null || n === '' ? '' : String(n).replace('.', ','); },
+    setCm(n) { const v = Math.round(n * 10) / 10; this.form.cm = v; this.form.cmText = this.fmtDec(v); },
     computeTimestamp() {
       if (this.form.whenChoice==='custom' && this.form.timestamp) return new Date(this.form.timestamp).toISOString();
       return new Date().toISOString();
@@ -2983,7 +3008,11 @@ function app() {
         if (this.form.end) this.form.end = new Date(this.form.end).toISOString();
         else this.form.end = null;
       }
-      const { whenChoice, timestamp, ...data } = this.form;
+      if (this.sheet==='height') {
+        this.form.cm = this.parseDec(this.form.cmText);
+        if (!this.form.cm) { alert('Indica a altura em cm (ex.: 61,3).'); return; }
+      }
+      const { whenChoice, timestamp, cmText, ...data } = this.form;
       const ts = this.sheet==='sleep' ? this.form.start : this.computeTimestamp();
       if (this.editing) {
         this.records = this.records.map(r => r.id===this.editing.id ? { ...r, timestamp:ts, data } : r);
@@ -3419,7 +3448,7 @@ function app() {
         const bedOk = rel >= hm(G.bedMin) - 15 && rel <= hm(G.bedMax);
         items.push({ icon:'🛏️', tone: bedOk ? '' : 'warn', text:`Deitou ${t(N.bed)}${bedOk ? '' : ` · fora de ${G.bedMin}–${G.bedMax}`}` });
         for (const k of N.wakings)
-          items.push({ icon: k.fed ? '🤱' : '👀', tone:'', text:`Despertar ${t(k.at)} · ${D(k.min)} acordado${k.fed ? ' · mamou' : ''}` });
+          items.push({ icon: k.fed ? '🤱' : '👀', tone:'', text:`Despertar ${t(k.at)} · ${D(k.min)} acordado${k.fed ? ' · mamou' + (k.fedKind === 'peito' ? ' no peito' : k.fedKind === 'mamadeira' ? ' na mamadeira' : '') : ''}` });
         if (N.ongoing) items.push({ icon:'🌙', tone:'', text:'Ainda a dormir…' });
         else items.push({ icon:'🌅', tone: N.complete ? '' : 'muted',
           text: `Acordou ${t(N.wake)} · noite de ${D(N.inBedMin)} (${D(N.sleepMin)} a dormir)${N.complete ? '' : ' · noite incompleta, fora das médias'}` });
@@ -3533,7 +3562,7 @@ function app() {
         const N = r.night;
         if (N) {
           p.push(`deitou ${t(N.bed)}`);
-          if (N.wakings.length) p.push('despertares ' + N.wakings.map(k => `${t(k.at)} (${D(k.min)}${k.fed ? ', mamou' : ''})`).join(', '));
+          if (N.wakings.length) p.push('despertares ' + N.wakings.map(k => `${t(k.at)} (${D(k.min)}${k.fed ? ', mamou' + (k.fedKind === 'peito' ? ' no peito' : k.fedKind === 'mamadeira' ? ' na mamadeira' : '') : ''})`).join(', '));
           else if (N.complete) p.push('sem despertares');
           if (!N.ongoing) p.push(`acordou ${t(N.wake)}${N.complete ? '' : ' (registo incompleto)'}`);
         }
