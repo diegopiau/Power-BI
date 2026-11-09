@@ -1018,12 +1018,15 @@ tailwind.config = {
             <div>
               <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Altura / comprimento (cm)</label>
               <div class="flex items-center gap-2">
-                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.cm=Math.max(0,Math.round(((form.cm||0)-0.5)*10)/10)">−</button>
-                <input type="number" inputmode="decimal" step="0.1" class="flex-1 p-4 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-2xl font-semibold" x-model.number="form.cm" placeholder="48">
-                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="form.cm=Math.round(((form.cm||0)+0.5)*10)/10">+</button>
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="setCm(Math.max(0,(form.cm||0)-0.1))">−</button>
+                <!-- type="text" + inputmode="decimal": no iPhone em português o teclado
+                     escreve vírgula, que um type="number" pode descartar. -->
+                <input type="text" inputmode="decimal" autocomplete="off" class="flex-1 min-w-0 p-4 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-center num-input text-2xl font-semibold"
+                       x-model="form.cmText" @input="form.cm = parseDec(form.cmText)" placeholder="61,3">
+                <button class="btn-tap w-11 h-11 rounded-xl bg-mint-100 dark:bg-night-2 text-xl" @click="setCm((form.cm||0)+0.1)">+</button>
               </div>
               <template x-if="lastHeight && form.cm">
-                <div class="mt-2 text-sm text-center num-input text-slate-500 dark:text-slate-400" x-text="`${(form.cm-lastHeight.data.cm>=0?'+':'')}${(form.cm-lastHeight.data.cm).toFixed(1)} cm desde ${fmtDate(lastHeight.timestamp)}`"></div>
+                <div class="mt-2 text-sm text-center num-input text-slate-500 dark:text-slate-400" x-text="`${(form.cm-lastHeight.data.cm>=0?'+':'')}${fmtDec((form.cm-lastHeight.data.cm).toFixed(1))} cm desde ${fmtDate(lastHeight.timestamp)}`"></div>
               </template>
             </div>
             <div>
@@ -2895,7 +2898,7 @@ function app() {
           return extras ? `${auto}${k} (${extras})` : `${auto}${k}`;
         }
         case 'weight': return `${d.grams} g${d.notes?' · '+d.notes:''}`;
-        case 'height': return `${d.cm} cm${d.notes?' · '+d.notes:''}`;
+        case 'height': return `${this.fmtDec(d.cm)} cm${d.notes?' · '+d.notes:''}`;
         case 'med': return `${d.name||'Remédio'}${d.notes?' · '+d.notes:''}`;
         case 'pumping': {
           const p = [`${d.ml||0} ml`];
@@ -2955,7 +2958,7 @@ function app() {
         case 'feeding': return { ...base, method:'mama', side:'E', duration_min:15, ml:0, ml_materno:0, ml_formula:0, source:'materno', notes_chips:[], notes:'' };
         case 'diaper':  return { ...base, diaperKind:'wet', urine_color:'clara', poop_desc:'', poop_color:'' };
         case 'weight':  return { ...base, grams: this.lastWeight?.data?.grams || this.profile.birth_weight_g || 0, notes:'' };
-        case 'height':  return { ...base, cm: this.lastHeight?.data?.cm || 0, notes:'' };
+        case 'height':  { const cm = this.lastHeight?.data?.cm || 0; return { ...base, cm, cmText: cm ? this.fmtDec(cm) : '', notes:'' }; }
         case 'pumping': return { ...base, ml:0, side:'ambos', duration_min:12 };
         case 'promil':  return { ...base, sachets:1 };
         case 'colic':   return { ...base, severity:3, duration_min:10, helped:[], notes:'' };
@@ -2972,8 +2975,13 @@ function app() {
         if (data.start) data.start = toLocal(data.start);
         if (data.end)   data.end   = toLocal(data.end);
       }
+      if (r.type === 'height') data.cmText = this.fmtDec(data.cm);
       return { ...data, whenChoice:'custom', timestamp: localISO };
     },
+    // Números decimais em formato PT (vírgula) ↔ número
+    parseDec(v) { const n = parseFloat(String(v ?? '').trim().replace(',', '.')); return isFinite(n) ? Math.round(n * 10) / 10 : null; },
+    fmtDec(n) { return n == null || n === '' ? '' : String(n).replace('.', ','); },
+    setCm(n) { const v = Math.round(n * 10) / 10; this.form.cm = v; this.form.cmText = this.fmtDec(v); },
     computeTimestamp() {
       if (this.form.whenChoice==='custom' && this.form.timestamp) return new Date(this.form.timestamp).toISOString();
       return new Date().toISOString();
@@ -3000,7 +3008,11 @@ function app() {
         if (this.form.end) this.form.end = new Date(this.form.end).toISOString();
         else this.form.end = null;
       }
-      const { whenChoice, timestamp, ...data } = this.form;
+      if (this.sheet==='height') {
+        this.form.cm = this.parseDec(this.form.cmText);
+        if (!this.form.cm) { alert('Indica a altura em cm (ex.: 61,3).'); return; }
+      }
+      const { whenChoice, timestamp, cmText, ...data } = this.form;
       const ts = this.sheet==='sleep' ? this.form.start : this.computeTimestamp();
       if (this.editing) {
         this.records = this.records.map(r => r.id===this.editing.id ? { ...r, timestamp:ts, data } : r);
