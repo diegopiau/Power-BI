@@ -62,6 +62,10 @@ A documentação completa dos campos por tipo está no comentário no topo do `i
 
 - **Hoje**: KPIs com cores (verde/amarelo/vermelho), alertas ativos, 2 botões gigantes (mamada / fralda),
   suplemento sugerido em ml/refeição, timeline dos últimos registos.
+- **Sono** (análise): médias vs metas da consultora (despertares/noite, maior bloco, deitar, acordar,
+  sono diurno, sonecas, janelas), linha do tempo diária (sonecas, noite com despertares, mamadas),
+  padrões descritivos ("nas noites com X, Y despertares"), gráfico de despertares por hora, detalhe dia a dia,
+  metas editáveis e botão para enviar o resumo à consultora. No ecrã Hoje: "acordado há X · próxima soneca entre A e B".
 - **Gráficos**: peso com linha de meta +Xg/dia, mamadas/dia, fraldas (stacked), suplemento/dia,
   heatmap de mamadas por hora × dia. Filtros 7/14/30 dias. Botão **CSV semana atual**.
 - **Histórico**: agrupado por dia, filtros por tipo, tap para editar, apagar com **undo**.

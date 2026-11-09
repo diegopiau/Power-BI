@@ -109,9 +109,9 @@ tailwind.config = {
   </div>
 
   <div class="max-w-md mx-auto px-2 pb-2">
-    <div class="grid grid-cols-4 gap-1 bg-mint-100 dark:bg-night-1 rounded-xl p-1">
+    <div class="grid grid-cols-5 gap-1 bg-mint-100 dark:bg-night-1 rounded-xl p-1">
       <template x-for="t in tabs" :key="t.id">
-        <button class="btn-tap py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+        <button class="btn-tap py-1.5 rounded-lg text-[11px] leading-tight font-medium flex flex-col items-center justify-center gap-0.5"
                 :class="tab===t.id ? 'bg-white dark:bg-night-2 shadow-sm text-mint-500 dark:text-mint-200' : 'text-slate-600 dark:text-slate-300'"
                 @click="tab=t.id">
           <span x-text="t.icon"></span><span x-text="t.label"></span>
@@ -209,6 +209,13 @@ tailwind.config = {
           <button class="btn-tap px-3 py-2 rounded-xl bg-indigo-100 dark:bg-indigo-500/30 text-indigo-800 dark:text-indigo-100 text-sm font-medium"
                   @click="openSheet('sleep')">＋ Sono</button>
         </div>
+        <template x-if="nextSleep">
+          <div class="mt-2 pt-2 border-t border-mint-200/60 dark:border-night-2 text-xs num-input"
+               :class="nextSleep.over ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'">
+            <span x-show="nextSleep.kind!=='night'" x-text="`⏳ Acordado há ${fmtDuration(Math.round(nextSleep.awakeMin))}${nextSleep.over ? ' — janela ultrapassada' : ''}. `"></span><span x-text="nextSleep.text"></span>
+            <button class="ml-1 underline text-indigo-700 dark:text-indigo-200" @click="tab='sleep'">ver análise</button>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -349,6 +356,153 @@ tailwind.config = {
         <div class="text-center text-slate-500 dark:text-slate-400 text-sm py-6">Sem registos ainda. Toca num botão acima para começar.</div>
       </template>
     </div>
+  </section>
+
+  <!-- ================ TAB: SONO (análise) ================ -->
+  <section x-show="tab==='sleep'">
+    <div class="flex gap-2 mb-3">
+      <template x-for="r in [{v:'7',l:'7 dias'},{v:'14',l:'14 dias'},{v:'30',l:'30 dias'}]" :key="'sr'+r.v">
+        <button class="segbtn btn-tap flex-1 px-3 py-2 rounded-xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 text-sm"
+                :data-active="sleepRange===r.v" @click="sleepRange=r.v" x-text="r.l"></button>
+      </template>
+    </div>
+
+    <template x-if="!sa">
+      <div class="p-4 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 text-sm text-slate-500 dark:text-slate-400">A calcular…</div>
+    </template>
+
+    <template x-if="sa">
+      <div>
+        <!-- KPIs vs metas -->
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <template x-for="k in sleepKpis" :key="k.k">
+            <div class="p-3 rounded-2xl border" :class="_toneCls(k.tone)">
+              <div class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400" x-text="k.label"></div>
+              <div class="mt-0.5 text-2xl font-semibold num-input" x-text="k.value"></div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 num-input" x-text="k.sub"></div>
+            </div>
+          </template>
+        </div>
+
+        <!-- O que os dados mostram -->
+        <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+          <div class="font-semibold mb-2">O que os registos mostram</div>
+          <div class="space-y-2">
+            <template x-for="(i, idx) in sa.summary.insights" :key="'in'+idx">
+              <div class="p-2.5 rounded-xl border flex gap-2.5 items-start" :class="_toneCls(i.tone==='info' ? '' : i.tone)">
+                <div class="text-lg leading-none pt-0.5" x-text="i.icon"></div>
+                <div class="text-sm">
+                  <div class="font-medium" x-text="i.title"></div>
+                  <div class="text-slate-600 dark:text-slate-300 text-[13px]" x-text="i.text"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-2" x-show="sa.autogen">
+            <span x-text="sa.autogen"></span> sono(s) gerado(s) automaticamente ficaram de fora (horários fictícios).
+          </div>
+          <button class="btn-tap w-full mt-3 py-3 rounded-xl bg-indigo-100 dark:bg-indigo-500/30 text-indigo-800 dark:text-indigo-100 font-medium text-sm"
+                  @click="shareSleepReport()">📤 Enviar resumo à consultora</button>
+        </div>
+
+        <!-- Actograma -->
+        <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+          <div class="text-sm font-medium mb-1">Linha do tempo (06h → 09h do dia seguinte)</div>
+          <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400 mb-2">
+            <span><span class="inline-block w-3 h-2 rounded-sm align-middle" style="background:#A5B4FC"></span> soneca</span>
+            <span><span class="inline-block w-3 h-2 rounded-sm align-middle" style="background:#4F46E5"></span> noite</span>
+            <span><span class="inline-block w-3 h-2 rounded-sm align-middle" style="background:#F0A84B"></span> ponte tardia</span>
+            <span><span class="inline-block w-2 h-2 rounded-full align-middle" style="background:#E8798A"></span> mamada</span>
+            <span><span class="inline-block w-3 h-2 align-middle" style="background:rgba(127,200,169,.4)"></span> meta deitar</span>
+            <span><span class="inline-block w-3 h-2 align-middle" style="background:rgba(244,194,122,.45)"></span> meta acordar</span>
+          </div>
+          <div x-html="sleepActogram"></div>
+          <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Os espaços dentro da barra da noite são os despertares. Barras esbatidas = noite com registo incompleto.</div>
+        </div>
+
+        <!-- Detalhe do dia -->
+        <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3" x-show="sleepDay">
+          <div class="flex items-center justify-between mb-2">
+            <button class="btn-tap w-10 h-10 rounded-xl bg-mint-100 dark:bg-night-2 text-lg disabled:opacity-30" :disabled="sleepDayPos.first" @click="sleepDayStep(-1)">‹</button>
+            <div class="text-center">
+              <div class="font-semibold capitalize" x-text="sleepDay ? dayLabel(sleepDay.D) : ''"></div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 num-input" x-text="sleepDaySummary"></div>
+            </div>
+            <button class="btn-tap w-10 h-10 rounded-xl bg-mint-100 dark:bg-night-2 text-lg disabled:opacity-30" :disabled="sleepDayPos.last" @click="sleepDayStep(1)">›</button>
+          </div>
+          <div class="space-y-1">
+            <template x-for="(it, idx) in sleepDayItems" :key="'di'+idx">
+              <div class="flex items-start gap-2 px-2 py-1.5 rounded-lg text-sm num-input"
+                   :class="it.tone==='warn' ? 'bg-amber-100 dark:bg-amber-400/15 text-amber-800 dark:text-amber-200'
+                         : it.tone==='ok' ? 'text-mint-500 dark:text-mint-200'
+                         : it.tone==='muted' ? 'text-slate-400 dark:text-slate-500' : ''">
+                <span class="w-5 text-center" x-text="it.icon"></span><span class="flex-1" x-text="it.text"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Gráficos -->
+        <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+          <div class="text-sm font-medium mb-2">Despertares por noite e maior bloco</div>
+          <div class="chart-wrap h-52"><canvas id="chartSleepWakings"></canvas></div>
+        </div>
+        <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+          <div class="text-sm font-medium mb-2">A que horas acorda durante a noite</div>
+          <div class="chart-wrap h-44"><canvas id="chartSleepHours"></canvas></div>
+        </div>
+        <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3">
+          <div class="text-sm font-medium mb-2">Horas de sono: noite + dia</div>
+          <div class="chart-wrap h-48"><canvas id="chartSleepSplit"></canvas></div>
+        </div>
+
+        <!-- Metas -->
+        <div class="rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 mb-3 overflow-hidden">
+          <button class="btn-tap w-full flex items-center justify-between p-3 text-left" @click="sleepGoalsOpen=!sleepGoalsOpen">
+            <span class="font-medium text-sm">🎯 Metas da consultora</span>
+            <span class="text-slate-400" x-text="sleepGoalsOpen ? '▲' : '▼'"></span>
+          </button>
+          <div x-show="sleepGoalsOpen" class="px-3 pb-3 space-y-3 text-sm">
+            <div class="text-[11px] text-slate-500 dark:text-slate-400">Preenchidas com o guia de sono atual. Atualizem quando a consultora mudar as metas (ex.: aos 5 meses).</div>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Janela mín. (min)</span>
+                <input type="number" inputmode="numeric" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model.number="settings.sleep_goals.wwMin"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Janela máx. (min)</span>
+                <input type="number" inputmode="numeric" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model.number="settings.sleep_goals.wwMax"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Sonecas mín.</span>
+                <input type="number" inputmode="numeric" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model.number="settings.sleep_goals.napsMin"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Sonecas máx.</span>
+                <input type="number" inputmode="numeric" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model.number="settings.sleep_goals.napsMax"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Sono diurno mín. (min)</span>
+                <input type="number" inputmode="numeric" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model.number="settings.sleep_goals.daySleepMin"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Sono diurno máx. (min)</span>
+                <input type="number" inputmode="numeric" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model.number="settings.sleep_goals.daySleepMax"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Deitar a partir de</span>
+                <input type="time" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="settings.sleep_goals.bedMin"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Deitar até</span>
+                <input type="time" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="settings.sleep_goals.bedMax"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Acordar a partir de</span>
+                <input type="time" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="settings.sleep_goals.wakeMin"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Acordar idealmente até</span>
+                <input type="time" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="settings.sleep_goals.wakeMax"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Acordar no máximo</span>
+                <input type="time" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="settings.sleep_goals.wakeLimit"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Última soneca acaba até</span>
+                <input type="time" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="settings.sleep_goals.lastNapEnd"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Jejum noturno (h)</span>
+                <input type="number" inputmode="decimal" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model.number="settings.sleep_goals.nightFastH"></label>
+              <label class="block"><span class="text-[11px] text-slate-500 dark:text-slate-400">Soneca curta abaixo de (min)</span>
+                <input type="number" inputmode="numeric" class="w-full p-2 rounded-lg bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model.number="settings.sleep_goals.shortNapMin"></label>
+            </div>
+            <button class="btn-tap w-full py-2 rounded-xl bg-mint-100 dark:bg-night-2 text-sm" @click="resetSleepGoals()">Repor valores do guia</button>
+          </div>
+        </div>
+
+        <div class="text-[11px] text-slate-500 dark:text-slate-400 px-1 mb-2">
+          Como o app separa sonecas e noite: sono iniciado a partir de ~30 min antes do "deitar a partir de" conta como noite; os intervalos entre esses sonos são despertares. Para análises fiáveis, registem cada despertar ("☀️ Acordou" e depois "🌙 Adormeceu") e a hora em que acorda de manhã.
+        </div>
+      </div>
+    </template>
   </section>
 
   <!-- ================ TAB: GRÁFICOS ================ -->
@@ -1335,7 +1489,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v21';
+    const CACHE = 'bernardo-v22';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1385,7 +1539,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v21';
+const APP_VERSION = 'v22';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1424,6 +1578,362 @@ Chart.register({
   }
 });
 
+// ============================================================
+// ANÁLISE DE SONO — funções puras (sem Alpine), testáveis à parte.
+//
+// Modelo: cada registo `sleep` é um bloco { start, end } (end vazio =
+// ainda a dormir). Não existe flag "soneca" vs "noite": a classificação
+// é feita aqui, por horário:
+//   • Noite do dia D = blocos que começam entre (deitar mín − 30 min) de D
+//     e as 06:00 de D+1. Despertares noturnos = intervalos entre esses blocos.
+//   • Sonecas do dia D = blocos que começam entre as 06:00 e esse corte.
+//   • Um 1.º bloco "noturno" curto (< 45 min) seguido de ≥ 45 min acordado
+//     é tratado como soneca ponte tardia, não como início da noite.
+//   • Um bloco que começa a partir das 16:00 e dura ≥ 2h passando das
+//     (deitar mín + 1h) é tratado como início antecipado da noite.
+// Registos gerados automaticamente (autogen) são ignorados: são horários
+// fictícios e estragariam as médias.
+// ============================================================
+const SLEEP_GOALS_DEFAULT = {
+  wwMin: 90, wwMax: 120,            // janela de sono (min)
+  napsMin: 3, napsMax: 4,           // nº de sonecas
+  daySleepMin: 240, daySleepMax: 300, // sono diurno total (min)
+  wakeMin: '06:00', wakeMax: '07:30', wakeLimit: '08:00', // acordar
+  bedMin: '18:00', bedMax: '20:00', // início do sono noturno
+  lastNapEnd: '17:30',              // última soneca termina até
+  nightFastH: 7,                    // capacidade de jejum noturno (h)
+  nightTargetH: 12,                 // oportunidade de sono noturno (h)
+  shortNapMin: 45                   // soneca abaixo disto = curta
+};
+
+const SleepAnalysis = (() => {
+  const MIN = 60000, HOUR = 3600000, DAY = 86400000;
+  const hm = s => { const [h, m] = String(s || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+  const at = (dayMs, minutes) => { const d = new Date(dayMs); d.setHours(0, 0, 0, 0); return d.getTime() + minutes * MIN; };
+  const dayStart = ms => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const addDays = (dayMs, n) => { const d = new Date(dayMs); d.setDate(d.getDate() + n); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const clockMin = ms => { const d = new Date(ms); return d.getHours() * 60 + d.getMinutes(); };
+  const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+  const fmtClock = m => { if (m == null) return '—'; m = ((Math.round(m) % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+  const fmtDur = m => { if (m == null) return '—'; m = Math.round(m); if (m < 60) return m + ' min'; const h = Math.floor(m / 60), r = m % 60; return r ? `${h}h${String(r).padStart(2, '0')}` : `${h}h`; };
+
+  // Blocos de sono reais, ordenados e fundidos quando se sobrepõem
+  // (ex.: os dois telemóveis registaram o mesmo sono).
+  function segments(records, now) {
+    const raw = [];
+    let autogen = 0;
+    for (const r of records) {
+      if (r.type !== 'sleep' || !r.data || !r.data.start) continue;
+      if (r.data.autogen) { autogen++; continue; }
+      const s = new Date(r.data.start).getTime();
+      const ongoing = !r.data.end;
+      let e = ongoing ? now : new Date(r.data.end).getTime();
+      if (!isFinite(s) || !isFinite(e) || e <= s) continue;
+      if (e - s > 16 * HOUR) e = s + 16 * HOUR; // registo esquecido aberto
+      raw.push({ s, e, ongoing });
+    }
+    raw.sort((a, b) => a.s - b.s);
+    const out = [];
+    for (const g of raw) {
+      const last = out[out.length - 1];
+      if (last && g.s <= last.e) { if (g.e > last.e) { last.e = g.e; last.ongoing = g.ongoing; } }
+      else out.push({ ...g });
+    }
+    return { segs: out, autogen };
+  }
+
+  // Classifica os blocos de um dia D em sonecas (de D) e noite (de D → D+1).
+  function classifyDay(segs, D, G) {
+    const nightCut = at(D, hm(G.bedMin) - 30);
+    const nightEnd = at(addDays(D, 1), 6 * 60);
+    const dayFrom = at(D, 6 * 60);
+    let naps = segs.filter(x => x.s >= dayFrom && x.s < nightCut);
+    let night = segs.filter(x => x.s >= nightCut && x.s < nightEnd);
+    // Noite antecipada: bloco longo que começou antes do corte
+    const earlyNight = naps.filter(x => x.s >= at(D, 16 * 60) && (x.e - x.s) >= 2 * HOUR && x.e > at(D, hm(G.bedMin) + 60));
+    if (earlyNight.length) {
+      const first = earlyNight[0];
+      night = [...naps.filter(x => x.s >= first.s), ...night];
+      naps = naps.filter(x => x.s < first.s);
+    }
+    // Soneca ponte tardia: 1.º bloco "noturno" curto seguido de vigília longa
+    let lateBridge = null;
+    if (night.length >= 2) {
+      const a = night[0], b = night[1];
+      if ((a.e - a.s) < 45 * MIN && (b.s - a.e) >= 45 * MIN) { lateBridge = a; naps = [...naps, a]; night = night.slice(1); }
+    }
+    return { naps, night, lateBridge };
+  }
+
+  function nightStats(night, feeds, G, D) {
+    if (!night.length) return null;
+    const bed = night[0].s;
+    const last = night[night.length - 1];
+    const wake = last.e;
+    const ongoing = last.ongoing;
+    const wakings = [];
+    let maxGap = 0;
+    for (let i = 1; i < night.length; i++) {
+      const gs = night[i - 1].e, ge = night[i].s;
+      const fed = feeds.some(f => f >= gs - 10 * MIN && f <= ge + 10 * MIN);
+      wakings.push({ at: gs, min: (ge - gs) / MIN, fed });
+      maxGap = Math.max(maxGap, ge - gs);
+    }
+    const sleepMin = night.reduce((s, x) => s + (x.e - x.s), 0) / MIN;
+    const longest = Math.max(...night.map(x => x.e - x.s)) / MIN;
+    // Noite incompleta: ainda a decorrer, acaba de madrugada (falta registo)
+    // ou tem um buraco > 3h (provável registo em falta).
+    const wakeClock = clockMin(wake);
+    const endsTooEarly = dayStart(wake) > D && wakeClock < 4 * 60;
+    const endsSameEvening = dayStart(wake) === D;
+    const complete = !ongoing && !endsTooEarly && !endsSameEvening && maxGap <= 3 * HOUR;
+    const nightFeeds = feeds.filter(f => f >= bed && f <= wake).length;
+    return {
+      bed, wake, ongoing, complete,
+      bedClock: clockMin(bed), wakeClock,
+      sleepMin, inBedMin: (wake - bed) / MIN, awakeMin: (wake - bed) / MIN - sleepMin,
+      longestMin: longest, wakings, nightFeeds,
+      wakingsFed: wakings.filter(w => w.fed).length
+    };
+  }
+
+  // Constrói a análise para os últimos `days` dias (D = hoje − days + 1 … hoje).
+  function build(records, goals, now, days) {
+    const G = { ...SLEEP_GOALS_DEFAULT, ...(goals || {}) };
+    const { segs, autogen } = segments(records, now);
+    const feeds = records.filter(r => r.type === 'feeding' && !(r.data && r.data.autogen))
+      .map(r => new Date(r.timestamp).getTime()).filter(isFinite).sort((a, b) => a - b);
+    const today = dayStart(now);
+    const rows = [];
+    // Calcula também o dia anterior ao período, para ter a hora de acordar do 1.º dia.
+    let prevNight = null;
+    for (let i = days; i >= 0; i--) {
+      const D = addDays(today, -i);
+      const { naps, night, lateBridge } = classifyDay(segs, D, G);
+      const N = nightStats(night, feeds, G, D);
+      if (i === days) { prevNight = N; continue; }
+      const morningWake = prevNight && !prevNight.ongoing && prevNight.wake >= at(D, 4 * 60) && prevNight.wake < at(D, 11 * 60) ? prevNight.wake : null;
+      const napList = naps.map(x => ({
+        s: x.s, e: x.e, min: (x.e - x.s) / MIN, ongoing: x.ongoing,
+        short: !x.ongoing && (x.e - x.s) / MIN < G.shortNapMin, late: x === lateBridge
+      }));
+      const windows = [];
+      let cursor = morningWake;
+      let cursorLabel = 'acordar';
+      for (const n of napList) {
+        if (cursor != null) windows.push({ from: cursor, to: n.s, min: (n.s - cursor) / MIN, kind: cursorLabel === 'acordar' ? 'first' : 'mid' });
+        cursor = n.ongoing ? null : n.e; cursorLabel = 'soneca';
+      }
+      if (cursor != null && N) windows.push({ from: cursor, to: N.bed, min: (N.bed - cursor) / MIN, kind: 'last' });
+      const rate = w => w.min < G.wwMin - 10 ? 'short' : w.min > G.wwMax + 10 ? 'long' : 'ok';
+      windows.forEach(w => { w.rate = rate(w); });
+      const daySleep = napList.reduce((s, n) => s + n.min, 0);
+      const lastNap = napList[napList.length - 1];
+      rows.push({
+        D, morningWake, naps: napList, windows, night: N,
+        napCount: napList.length, daySleepMin: daySleep,
+        lastNapEndClock: lastNap && !lastNap.ongoing ? clockMin(lastNap.e) : null,
+        hasData: napList.length > 0 || !!N,
+        // dia "completo" para médias diurnas: sabemos a hora de acordar e a de deitar
+        dayComplete: morningWake != null && !!N && !napList.some(n => n.ongoing),
+        feeds: feeds.filter(f => f >= at(D, 6 * 60) && f < at(addDays(D, 1), 6 * 60))
+      });
+      prevNight = N;
+    }
+    return { G, rows, autogen, summary: summarize(rows, G), hourly: wakeHistogram(rows) };
+  }
+
+  function wakeHistogram(rows) {
+    // Bins das 18h às 07h (14 bins)
+    const hours = [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5, 6, 7];
+    const counts = hours.map(() => 0);
+    for (const r of rows) {
+      if (!r.night || !r.night.complete) continue;
+      for (const w of r.night.wakings) {
+        const h = new Date(w.at).getHours();
+        const i = hours.indexOf(h);
+        if (i >= 0) counts[i]++;
+      }
+    }
+    return { hours, counts };
+  }
+
+  function summarize(rows, G) {
+    const nights = rows.map(r => r.night).filter(n => n && n.complete);
+    const fullDays = rows.filter(r => r.dayComplete);
+    const napDays = rows.filter(r => r.naps.length && r.night); // tem sonecas e sabemos quando começou a noite
+    const allWindows = fullDays.flatMap(r => r.windows);
+    const relBed = n => (n.bedClock < 12 * 60 ? n.bedClock + 1440 : n.bedClock); // deitar depois da meia-noite
+    const s = {
+      nNights: nights.length,
+      nDays: rows.length,
+      nFullDays: fullDays.length,
+      wakingsAvg: avg(nights.map(n => n.wakings.length)),
+      longestAvg: avg(nights.map(n => n.longestMin)),
+      nightSleepAvg: avg(nights.map(n => n.sleepMin)),
+      inBedAvg: avg(nights.map(n => n.inBedMin)),
+      awakeAvg: avg(nights.map(n => n.awakeMin)),
+      bedAvg: avg(nights.map(relBed)),
+      wakeAvg: avg(nights.map(n => n.wakeClock)),
+      bedLate: nights.filter(n => relBed(n) > hm(G.bedMax)).length,
+      bedEarly: nights.filter(n => relBed(n) < hm(G.bedMin) - 15).length,
+      wakeEarly: nights.filter(n => n.wakeClock < hm(G.wakeMin)).length,
+      wakeLate: nights.filter(n => n.wakeClock > hm(G.wakeLimit)).length,
+      napsAvg: avg(napDays.map(r => r.napCount)),
+      daySleepAvg: avg(napDays.map(r => r.daySleepMin)),
+      shortNapPct: (() => { const ns = napDays.flatMap(r => r.naps).filter(n => !n.ongoing); return ns.length ? ns.filter(n => n.short).length / ns.length : null; })(),
+      windowsOkPct: allWindows.length ? allWindows.filter(w => w.rate === 'ok').length / allWindows.length : null,
+      windowsLongPct: allWindows.length ? allWindows.filter(w => w.rate === 'long').length / allWindows.length : null,
+      firstWinAvg: avg(allWindows.filter(w => w.kind === 'first').map(w => w.min)),
+      lastWinAvg: avg(allWindows.filter(w => w.kind === 'last').map(w => w.min)),
+      lastNapLate: napDays.filter(r => r.lastNapEndClock != null && r.lastNapEndClock > hm(G.lastNapEnd)).length,
+      wakingsTotal: nights.reduce((t, n) => t + n.wakings.length, 0),
+      wakingsFed: nights.reduce((t, n) => t + n.wakingsFed, 0),
+      nightFeedsAvg: avg(nights.map(n => n.nightFeeds)),
+      trend: null
+    };
+    // Tendência: 1.ª metade vs 2.ª metade das noites completas
+    if (nights.length >= 4) {
+      const h = Math.floor(nights.length / 2);
+      s.trend = { before: avg(nights.slice(0, h).map(n => n.wakings.length)), after: avg(nights.slice(-h).map(n => n.wakings.length)) };
+    }
+    s.insights = insights(rows, s, G);
+    return s;
+  }
+
+  // Comparações descritivas: "nas noites com X, teve em média A despertares vs B".
+  function compare(rows, pred) {
+    const yes = [], no = [];
+    for (const r of rows) {
+      if (!r.night || !r.night.complete) continue;
+      const v = pred(r);
+      if (v === null || v === undefined) continue;
+      (v ? yes : no).push(r.night.wakings.length);
+    }
+    if (yes.length < 2 || no.length < 2) return null;
+    return { yes: avg(yes), no: avg(no), nYes: yes.length, nNo: no.length };
+  }
+
+  function insights(rows, s, G) {
+    const out = [];
+    const tone = (ok, warn) => ok ? 'ok' : warn ? 'warn' : 'alert';
+    const one = x => x == null ? '—' : (Math.round(x * 10) / 10).toString().replace('.', ',');
+    if (!s.nNights) {
+      out.push({ tone: 'info', icon: 'ℹ️', title: 'Ainda sem noites completas', text: 'Regista quando adormece à noite, cada despertar e a hora em que acorda de manhã. Com 3–4 noites já aparecem padrões.' });
+      return out;
+    }
+    // Despertares
+    const w = s.wakingsAvg;
+    let wt = `${one(w)} despertares por noite em média (${s.nNights} noite${s.nNights > 1 ? 's' : ''} completa${s.nNights > 1 ? 's' : ''}).`;
+    if (s.trend) {
+      const d = s.trend.after - s.trend.before;
+      if (Math.abs(d) >= 0.5) wt += d < 0 ? ` A melhorar: de ${one(s.trend.before)} para ${one(s.trend.after)}.` : ` A piorar: de ${one(s.trend.before)} para ${one(s.trend.after)}.`;
+      else wt += ' Estável no período.';
+    }
+    out.push({ tone: tone(w <= 1, w <= 3), icon: '🌙', title: 'Despertares noturnos', text: wt });
+    // Maior bloco vs jejum
+    if (s.longestAvg != null) {
+      const fast = G.nightFastH * 60;
+      out.push({ tone: s.longestAvg >= fast * 0.85 ? 'ok' : 'warn', icon: '⏱️', title: 'Maior bloco seguido',
+        text: `Em média ${fmtDur(s.longestAvg)} sem acordar. Referência do guia para a idade: até ~${G.nightFastH}h de jejum noturno.` });
+    }
+    // Pico de despertares
+    const hist = wakeHistogram(rows);
+    const maxC = Math.max(...hist.counts);
+    if (maxC >= 2) {
+      const peaks = hist.hours.filter((h, i) => hist.counts[i] === maxC);
+      const hh = h => String(h).padStart(2, '0') + 'h';
+      out.push({ tone: 'info', icon: '🕑', title: 'Hora mais frequente dos despertares',
+        text: `Por volta das ${peaks.map(hh).join(' e das ')} (${maxC} vez${maxC > 1 ? 'es' : ''}${peaks.length > 1 ? ' cada' : ''} no período). Vê o gráfico por hora abaixo.` });
+    }
+    // Mamadas nos despertares
+    if (s.wakingsTotal >= 3) {
+      const pct = Math.round(s.wakingsFed / s.wakingsTotal * 100);
+      out.push({ tone: 'info', icon: '🤱', title: 'Despertares com mamada',
+        text: `${pct}% dos despertares tiveram mamada registada (${s.wakingsFed} de ${s.wakingsTotal}). Média de ${one(s.nightFeedsAvg)} mamadas por noite.` });
+    }
+    // Deitar
+    if (s.bedAvg != null) {
+      const ok = s.bedAvg >= hm(G.bedMin) - 15 && s.bedAvg <= hm(G.bedMax);
+      let t = `Média ${fmtClock(s.bedAvg)} (meta ${G.bedMin}–${G.bedMax}).`;
+      if (s.bedLate) t += ` ${s.bedLate} noite${s.bedLate > 1 ? 's' : ''} depois das ${G.bedMax}.`;
+      if (s.bedEarly) t += ` ${s.bedEarly} antes das ${G.bedMin}.`;
+      out.push({ tone: ok && !s.bedLate ? 'ok' : 'warn', icon: '🛏️', title: 'Hora de deitar', text: t });
+    }
+    // Acordar
+    if (s.wakeAvg != null) {
+      const ok = s.wakeAvg >= hm(G.wakeMin) && s.wakeAvg <= hm(G.wakeLimit);
+      let t = `Média ${fmtClock(s.wakeAvg)} (meta ${G.wakeMin}–${G.wakeMax}, máx. ${G.wakeLimit}).`;
+      if (s.wakeEarly) t += ` ${s.wakeEarly} manhã${s.wakeEarly > 1 ? 's' : ''} antes das ${G.wakeMin}.`;
+      if (s.wakeLate) t += ` ${s.wakeLate} depois das ${G.wakeLimit}.`;
+      out.push({ tone: ok ? 'ok' : 'warn', icon: '☀️', title: 'Hora de acordar', text: t });
+    }
+    // Sono diurno e sonecas
+    if (s.daySleepAvg != null) {
+      const ok = s.daySleepAvg >= G.daySleepMin - 15 && s.daySleepAvg <= G.daySleepMax + 15;
+      let t = `${fmtDur(s.daySleepAvg)} por dia em ${one(s.napsAvg)} sonecas (meta ${fmtDur(G.daySleepMin)}–${fmtDur(G.daySleepMax)}, ${G.napsMin}–${G.napsMax} sonecas).`;
+      if (s.shortNapPct != null && s.shortNapPct >= 0.3) t += ` ${Math.round(s.shortNapPct * 100)}% das sonecas duraram menos de ${G.shortNapMin} min.`;
+      out.push({ tone: ok ? 'ok' : 'warn', icon: '🌤️', title: 'Sono diurno', text: t });
+    }
+    // Janelas
+    if (s.windowsOkPct != null) {
+      let t = `${Math.round(s.windowsOkPct * 100)}% das janelas dentro de ${fmtDur(G.wwMin)}–${fmtDur(G.wwMax)}`;
+      if (s.windowsLongPct) t += `; ${Math.round(s.windowsLongPct * 100)}% mais longas`;
+      t += '.';
+      if (s.firstWinAvg != null) t += ` 1.ª janela do dia: ${fmtDur(s.firstWinAvg)}.`;
+      if (s.lastWinAvg != null) t += ` Última (antes da noite): ${fmtDur(s.lastWinAvg)}.`;
+      out.push({ tone: s.windowsOkPct >= 0.7 ? 'ok' : s.windowsOkPct >= 0.4 ? 'warn' : 'alert', icon: '⏳', title: 'Janelas de sono', text: t });
+    }
+    if (s.lastNapLate) {
+      out.push({ tone: 'warn', icon: '🌇', title: 'Última soneca tardia',
+        text: `Em ${s.lastNapLate} dia${s.lastNapLate > 1 ? 's' : ''} a última soneca terminou depois das ${G.lastNapEnd}.` });
+    }
+    // Comparações (descritivas, não causais)
+    const cmp = [
+      { label: `última janela acima de ${fmtDur(G.wwMax)}`, f: r => { const l = r.windows.find(w => w.kind === 'last'); return l ? l.min > G.wwMax + 10 : null; } },
+      { label: `deitar depois das ${G.bedMax}`, f: r => r.night ? (r.night.bedClock < 720 ? true : r.night.bedClock > hm(G.bedMax)) : null },
+      { label: `sono diurno abaixo de ${fmtDur(G.daySleepMin)}`, f: r => r.dayComplete ? r.daySleepMin < G.daySleepMin - 15 : null },
+      { label: `soneca terminada depois das ${G.lastNapEnd}`, f: r => r.lastNapEndClock != null ? r.lastNapEndClock > hm(G.lastNapEnd) : null }
+    ];
+    for (const c of cmp) {
+      const res = compare(rows, c.f);
+      if (!res) continue;
+      const diff = res.yes - res.no;
+      if (Math.abs(diff) < 0.5) continue;
+      out.push({ tone: 'info', icon: '🔎', title: 'Padrão: ' + c.label,
+        text: `Nessas noites teve ${one(res.yes)} despertares em média (${res.nYes} noites) vs ${one(res.no)} nas restantes (${res.nNo}). É uma associação nos vossos registos, não prova causa — bom tema para levar à consultora.` });
+    }
+    return out;
+  }
+
+  // Sugestão do próximo sono a partir do último acordar (para o ecrã Hoje).
+  function nextSleepHint(records, goals, now) {
+    const G = { ...SLEEP_GOALS_DEFAULT, ...(goals || {}) };
+    const segs = segments(records, now).segs.filter(x => x.s <= now).map(x => x.e > now ? { ...x, e: now, ongoing: true } : x);
+    if (!segs.length) return null;
+    const last = segs[segs.length - 1];
+    if (last.ongoing) return null;
+    const awakeMin = (now - last.e) / MIN;
+    if (awakeMin > 6 * 60) return null; // registos em falta — não adivinhar
+    const nowClock = clockMin(now);
+    // De madrugada não se sugere soneca
+    if (nowClock < 5 * 60 || clockMin(last.e) >= hm(G.bedMax) + 60) return { awakeMin, kind: 'night', text: 'Noite — se acordou, espera ~3 min a ver se volta a adormecer sozinho.' };
+    const from = last.e + G.wwMin * MIN, to = last.e + G.wwMax * MIN;
+    const fromC = clockMin(from), toC = clockMin(to);
+    const over = awakeMin > G.wwMax;
+    if (fromC >= hm(G.lastNapEnd) || clockMin(last.e) >= 16 * 60 + 30) {
+      const a = Math.max(fromC, hm(G.bedMin)), b = Math.min(Math.max(toC, a), hm(G.bedMax));
+      return { awakeMin, over, kind: 'bed', from: fmtClock(a), to: fmtClock(b), text: `Próximo sono: noite, entre ${fmtClock(a)} e ${fmtClock(b)}.` };
+    }
+    const bridge = toC > 17 * 60;
+    return { awakeMin, over, kind: 'nap', from: fmtClock(fromC), to: fmtClock(toC),
+      text: `Próxima soneca entre ${fmtClock(fromC)} e ${fmtClock(toC)}${bridge ? ` (ponte curta, acordar até ${G.lastNapEnd})` : ''}.` };
+  }
+
+  return { build, nextSleepHint, segments, fmtClock, fmtDur, hm, at, addDays, dayStart, clockMin };
+})();
+
+
 function app() {
   return {
     APP_VERSION,
@@ -1431,6 +1941,7 @@ function app() {
     tab: 'today',
     tabs: [
       { id:'today',   label:'Hoje',      icon:'🏠' },
+      { id:'sleep',   label:'Sono',      icon:'🌙' },
       { id:'charts',  label:'Gráficos',  icon:'📊' },
       { id:'history', label:'Histórico', icon:'📜' },
       { id:'guide',   label:'Guia',      icon:'📖' }
@@ -1475,6 +1986,12 @@ function app() {
     _sb: null, _uid: null, _syncReady: false, _recShadow: {}, _docShadow: {}, _ch: null, _tombstones: new Set(),
     form: {},
     calc: { weight: 2715, mlPerKg: 150, meals: 8 },
+    // ===== Análise de sono (aba Sono) =====
+    sleepRange: '7',
+    sa: null,            // resultado de SleepAnalysis.build (cache — recalculado por watcher)
+    sleepDayIdx: -1,     // dia selecionado no detalhe (índice em sa.rows; -1 = mais recente)
+    sleepGoalsOpen: false,
+    _sleepT: null,
     chartRange: '14',
     rangeOptions: [
       { v:'7',   l:'7 dias'  },
@@ -1590,6 +2107,7 @@ function app() {
       if (p) Object.assign(this.profile, JSON.parse(p));
       const s = localStorage.getItem('bernardo_settings');
       if (s) Object.assign(this.settings, JSON.parse(s));
+      this.settings.sleep_goals = { ...SLEEP_GOALS_DEFAULT, ...(this.settings.sleep_goals || {}) };
       const r = localStorage.getItem('bernardo_records');
       if (r) this.records = JSON.parse(r);
       // Lista persistente de registos apagados (impede ressurreição após reabrir/sync)
@@ -1610,6 +2128,10 @@ function app() {
       this.$watch('tab', v => { if (v==='charts') this.scheduleChartsRender(); });
       this.$watch('records', () => { if (this.tab==='charts') this.scheduleChartsRender(); });
       this.$watch('chartRange', () => { if (this.tab==='charts') this.scheduleChartsRender(); });
+      this.$watch('tab', v => { if (v==='sleep') this.scheduleSleep(true); });
+      this.$watch('records', () => { if (this.tab==='sleep') this.scheduleSleep(); });
+      this.$watch('settings', () => { if (this.tab==='sleep') this.scheduleSleep(); });
+      this.$watch('sleepRange', () => { this.sleepDayIdx = -1; this.scheduleSleep(true); });
       this._clockT = setInterval(()=> this._now = Date.now(), 30000);
       if (this.timer.running) this.startTicking();
       this.initSync();
@@ -1619,6 +2141,7 @@ function app() {
       this.theme = this.theme==='dark' ? 'light' : 'dark';
       localStorage.setItem('bernardo_theme', this.theme);
       if (this.tab==='charts') this.scheduleChartsRender();
+      if (this.tab==='sleep') this.scheduleSleep(true);
     },
 
     // ===== SINCRONIZAÇÃO (Supabase) =====
@@ -2813,6 +3336,219 @@ function app() {
     },
     nowLocalISO() {
       return new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+    },
+    // ===== ANÁLISE DE SONO (aba Sono) =====
+    // Metas da consultora com fallback para os valores por omissão.
+    get sg() { return { ...SLEEP_GOALS_DEFAULT, ...(this.settings.sleep_goals || {}) }; },
+    resetSleepGoals() { this.settings.sleep_goals = { ...SLEEP_GOALS_DEFAULT }; this.showToast('Metas repostas'); },
+    // Sugestão para o ecrã Hoje: acordado há X → próxima soneca/noite entre A e B
+    get nextSleep() {
+      if (this.activeSleep) return null;
+      try { return SleepAnalysis.nextSleepHint(this.records, this.settings.sleep_goals, this._now); } catch(_) { return null; }
+    },
+    scheduleSleep(immediate) {
+      clearTimeout(this._sleepT);
+      this._sleepT = setTimeout(() => this.buildSleep(), immediate ? 0 : 400);
+    },
+    buildSleep() {
+      try {
+        this.sa = SleepAnalysis.build(this.records, this.settings.sleep_goals, Date.now(), parseInt(this.sleepRange, 10));
+      } catch (e) { console.error('Análise de sono falhou:', e); this.sa = null; return; }
+      requestAnimationFrame(() => requestAnimationFrame(() => this.renderSleepCharts()));
+    },
+    _one(x) { return x == null ? '—' : (Math.round(x * 10) / 10).toString().replace('.', ','); },
+    _toneCls(t) {
+      return t==='ok'    ? 'bg-mint-100 dark:bg-mint-500/20 border-mint-300 dark:border-mint-500/40'
+           : t==='warn'  ? 'bg-amber-100 dark:bg-amber-400/15 border-amber-300 dark:border-amber-500/40'
+           : t==='alert' ? 'bg-rose-100 dark:bg-rose-400/20 border-rose-300 dark:border-rose-500/40'
+           :               'bg-white dark:bg-night-1 border-mint-200/60 dark:border-night-2';
+    },
+    get sleepKpis() {
+      if (!this.sa) return [];
+      const s = this.sa.summary, G = this.sa.G, hm = SleepAnalysis.hm, D = SleepAnalysis.fmtDur, C = SleepAnalysis.fmtClock;
+      const inR = (v, a, b) => v == null ? null : (v >= a && v <= b);
+      const t = ok => ok == null ? '' : ok ? 'ok' : 'warn';
+      return [
+        { k:'wk', label:'Despertares/noite', value:this._one(s.wakingsAvg), sub:`${s.nNights} noite(s) completa(s)`,
+          tone: s.wakingsAvg == null ? '' : s.wakingsAvg <= 1 ? 'ok' : s.wakingsAvg <= 3 ? 'warn' : 'alert' },
+        { k:'lb', label:'Maior bloco', value:D(s.longestAvg), sub:`ref. ~${G.nightFastH}h de jejum`, tone: s.longestAvg == null ? '' : t(s.longestAvg >= G.nightFastH*60*0.85) },
+        { k:'bd', label:'Deitar (média)', value:C(s.bedAvg), sub:`meta ${G.bedMin}–${G.bedMax}`, tone: t(inR(s.bedAvg, hm(G.bedMin)-15, hm(G.bedMax))) },
+        { k:'wu', label:'Acordar (média)', value:C(s.wakeAvg), sub:`meta ${G.wakeMin}–${G.wakeMax}`, tone: t(inR(s.wakeAvg, hm(G.wakeMin), hm(G.wakeLimit))) },
+        { k:'ds', label:'Sono diurno', value:D(s.daySleepAvg), sub:`meta ${D(G.daySleepMin)}–${D(G.daySleepMax)}`, tone: t(inR(s.daySleepAvg, G.daySleepMin-15, G.daySleepMax+15)) },
+        { k:'np', label:'Sonecas/dia', value:this._one(s.napsAvg), sub:`meta ${G.napsMin}–${G.napsMax}`, tone: t(inR(s.napsAvg, G.napsMin-0.3, G.napsMax+0.3)) },
+        { k:'ww', label:'Janelas na meta', value: s.windowsOkPct == null ? '—' : Math.round(s.windowsOkPct*100)+'%', sub:`${D(G.wwMin)}–${D(G.wwMax)}`,
+          tone: s.windowsOkPct == null ? '' : s.windowsOkPct >= 0.7 ? 'ok' : s.windowsOkPct >= 0.4 ? 'warn' : 'alert' },
+        { k:'ns', label:'Sono noturno', value:D(s.nightSleepAvg), sub: s.awakeAvg == null ? '' : `${D(s.awakeAvg)} acordado à noite`, tone:'' }
+      ];
+    },
+    get sleepDay() {
+      if (!this.sa || !this.sa.rows.length) return null;
+      const rows = this.sa.rows;
+      return rows[this.sleepDayIdx < 0 ? rows.length - 1 : Math.min(this.sleepDayIdx, rows.length - 1)];
+    },
+    get sleepDayPos() {
+      if (!this.sa) return { first:true, last:true };
+      const n = this.sa.rows.length, i = this.sleepDayIdx < 0 ? n - 1 : this.sleepDayIdx;
+      return { first: i <= 0, last: i >= n - 1 };
+    },
+    sleepDayStep(d) {
+      const n = this.sa.rows.length;
+      const i = this.sleepDayIdx < 0 ? n - 1 : this.sleepDayIdx;
+      this.sleepDayIdx = Math.max(0, Math.min(n - 1, i + d));
+    },
+    dayLabel(ms) { return new Date(ms).toLocaleDateString('pt-PT', { weekday:'short', day:'2-digit', month:'2-digit' }); },
+    // Linha do tempo de um dia: acordar → janela → soneca → … → deitar → despertares → acordar
+    get sleepDayItems() {
+      const r = this.sleepDay; if (!r) return [];
+      const G = this.sa.G, D = SleepAnalysis.fmtDur, t = ms => this.fmtTime(ms), hm = SleepAnalysis.hm;
+      const items = [];
+      const winItem = w => ({ icon:'⏳', tone: w.rate==='ok' ? 'ok' : 'warn',
+        text: `Janela ${D(w.min)}${w.rate==='long' ? ' · acima da meta' : w.rate==='short' ? ' · abaixo da meta' : ' ✓'}` });
+      const byTo = new Map(r.windows.map(w => [w.to, w]));
+      if (r.morningWake) items.push({ icon:'☀️', tone:'', text:`Acordou ${t(r.morningWake)}` });
+      else items.push({ icon:'❔', tone:'muted', text:'Hora de acordar não registada (falta o fim da noite anterior)' });
+      for (const n of r.naps) {
+        const w = byTo.get(n.s); if (w) items.push(winItem(w));
+        items.push({ icon: n.late ? '🌇' : '😴', tone: (n.short || n.late) ? 'warn' : '',
+          text: `Soneca ${t(n.s)}–${n.ongoing ? '…' : t(n.e)} · ${D(n.min)}${n.short ? ' · curta' : ''}${n.late ? ' · ponte tardia' : ''}` });
+      }
+      const N = r.night;
+      if (N) {
+        const w = byTo.get(N.bed); if (w) items.push(winItem(w));
+        const rel = N.bedClock < 720 ? N.bedClock + 1440 : N.bedClock;
+        const bedOk = rel >= hm(G.bedMin) - 15 && rel <= hm(G.bedMax);
+        items.push({ icon:'🛏️', tone: bedOk ? '' : 'warn', text:`Deitou ${t(N.bed)}${bedOk ? '' : ` · fora de ${G.bedMin}–${G.bedMax}`}` });
+        for (const k of N.wakings)
+          items.push({ icon: k.fed ? '🤱' : '👀', tone:'', text:`Despertar ${t(k.at)} · ${D(k.min)} acordado${k.fed ? ' · mamou' : ''}` });
+        if (N.ongoing) items.push({ icon:'🌙', tone:'', text:'Ainda a dormir…' });
+        else items.push({ icon:'🌅', tone: N.complete ? '' : 'muted',
+          text: `Acordou ${t(N.wake)} · noite de ${D(N.inBedMin)} (${D(N.sleepMin)} a dormir)${N.complete ? '' : ' · noite incompleta, fora das médias'}` });
+      } else items.push({ icon:'❔', tone:'muted', text:'Noite ainda sem registos' });
+      return items;
+    },
+    get sleepDaySummary() {
+      const r = this.sleepDay; if (!r) return '';
+      const p = [`${r.napCount} soneca${r.napCount === 1 ? '' : 's'} · ${SleepAnalysis.fmtDur(r.daySleepMin)} de dia`];
+      if (r.night && r.night.complete) p.push(`${r.night.wakings.length} despertar${r.night.wakings.length === 1 ? '' : 'es'} · maior bloco ${SleepAnalysis.fmtDur(r.night.longestMin)}`);
+      return p.join(' · ');
+    },
+    // Linha do tempo (actograma) em SVG: cada linha = um dia das 06h às 09h do dia seguinte.
+    get sleepActogram() {
+      if (!this.sa) return '';
+      const rows = [...this.sa.rows].reverse(), G = this.sa.G, SA = SleepAnalysis;
+      const dark = this.theme === 'dark';
+      const col = dark
+        ? { grid:'#2c3752', text:'#94a3b8', nap:'#A5B4FC', night:'#6366F1', bridge:'#F4C27A', feed:'#F1B0B7', bed:'rgba(127,200,169,.14)', wake:'rgba(244,194,122,.14)' }
+        : { grid:'#E4DBC8', text:'#64748b', nap:'#A5B4FC', night:'#4F46E5', bridge:'#F0A84B', feed:'#E8798A', bed:'rgba(127,200,169,.22)', wake:'rgba(244,194,122,.25)' };
+      const W = 1000, L = 92, PW = W - L - 6, RH = 34, TOP = 30, SPAN = 27 * 3600000;
+      const H = TOP + rows.length * RH + 6;
+      const x = (D, ms) => L + Math.max(0, Math.min(1, (ms - SA.at(D, 360)) / SPAN)) * PW;
+      let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,system-ui,sans-serif">`;
+      const hours = [6,9,12,15,18,21,0,3,6,9];
+      hours.forEach((h, i) => {
+        const xx = L + (i * 3 * 3600000 / SPAN) * PW;
+        svg += `<line x1="${xx}" y1="${TOP-6}" x2="${xx}" y2="${H-4}" stroke="${col.grid}" stroke-width="1.5"/>`;
+        const anchor = i === hours.length - 1 ? 'end' : 'middle';
+        svg += `<text x="${xx}" y="${TOP-12}" fill="${col.text}" font-size="22" text-anchor="${anchor}">${String(h).padStart(2,'0')}h</text>`;
+      });
+      rows.forEach((r, i) => {
+        const y = TOP + i * RH, D = r.D, D1 = SA.addDays(D, 1);
+        // faixas-meta: deitar (verde) e acordar (âmbar)
+        svg += `<rect x="${x(D, SA.at(D, SA.hm(G.bedMin)))}" y="${y+2}" width="${x(D, SA.at(D, SA.hm(G.bedMax))) - x(D, SA.at(D, SA.hm(G.bedMin)))}" height="${RH-4}" fill="${col.bed}"/>`;
+        svg += `<rect x="${x(D, SA.at(D1, SA.hm(G.wakeMin)))}" y="${y+2}" width="${x(D, SA.at(D1, SA.hm(G.wakeMax))) - x(D, SA.at(D1, SA.hm(G.wakeMin)))}" height="${RH-4}" fill="${col.wake}"/>`;
+        const dd = new Date(D);
+        const lbl = ['dom','seg','ter','qua','qui','sex','sáb'][dd.getDay()] + ' ' + String(dd.getDate()).padStart(2,'0');
+        svg += `<text x="${L-8}" y="${y+RH/2+7}" fill="${col.text}" font-size="21" text-anchor="end">${lbl}</text>`;
+        const bar = (s, e, fill, op) => {
+          const a = x(D, s), b = x(D, e);
+          if (b - a < 0.5) return;
+          svg += `<rect x="${a}" y="${y+7}" width="${Math.max(2, b-a)}" height="${RH-14}" rx="4" fill="${fill}" opacity="${op}"/>`;
+        };
+        for (const n of r.naps) bar(n.s, n.e, n.late ? col.bridge : col.nap, 1);
+        if (r.night) {
+          const N = r.night, op = N.complete || N.ongoing ? 1 : 0.45;
+          let cur = N.bed;
+          for (const k of N.wakings) { bar(cur, k.at, col.night, op); cur = k.at + k.min * 60000; }
+          bar(cur, N.wake, col.night, op);
+        }
+        for (const f of r.feeds) svg += `<circle cx="${x(D, f)}" cy="${y+RH-4}" r="4" fill="${col.feed}"/>`;
+      });
+      return svg + '</svg>';
+    },
+    renderSleepCharts() {
+      if (!this.sa || this.tab !== 'sleep') return;
+      const isDark = this.theme === 'dark';
+      const grid = isDark ? '#2c3752' : '#E4DBC8';
+      Chart.defaults.color = isDark ? '#94a3b8' : '#64748b';
+      Chart.defaults.borderColor = grid;
+      Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif';
+      const rows = this.sa.rows;
+      const labels = rows.map(r => new Date(r.D).toLocaleDateString('pt-PT', { day:'2-digit', month:'2-digit' }));
+      const vl = { enabled: rows.length <= 31, dark: isDark };
+      const done = r => r.night && r.night.complete;
+      const wk = rows.map(r => done(r) ? r.night.wakings.length : null);
+      const longest = rows.map(r => done(r) ? +(r.night.longestMin / 60).toFixed(1) : null);
+      this._chart('chartSleepWakings', { type:'bar', data:{ labels, datasets:[
+          { type:'bar', label:'despertares', data:wk, yAxisID:'y',
+            backgroundColor: wk.map(v => v == null ? '#cbd5e1' : v <= 1 ? '#7FC8A9' : v <= 3 ? '#F4C27A' : '#F1B0B7') },
+          { type:'line', label:'maior bloco (h)', data:longest, yAxisID:'y2', borderColor:'#818CF8', backgroundColor:'#818CF8', tension:.3, spanGaps:true, pointRadius:3, skipLabel:true }
+        ]},
+        options:{ maintainAspectRatio:false, responsive:true,
+          plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } }, valueLabels: vl },
+          scales:{ x:{ grid:{ color:grid } },
+                   y:{ beginAtZero:true, ticks:{ precision:0 }, grid:{ color:grid } },
+                   y2:{ position:'right', beginAtZero:true, grid:{ display:false }, ticks:{ callback: v => v + 'h' } } } } });
+      const nightH = rows.map(r => done(r) ? +(r.night.sleepMin / 60).toFixed(1) : null);
+      const dayH = rows.map(r => r.naps.length ? +(r.daySleepMin / 60).toFixed(1) : null);
+      this._chart('chartSleepSplit', { type:'bar', data:{ labels, datasets:[
+          { label:'noite (h)', data:nightH, backgroundColor:'#6366F1', stack:'s' },
+          { label:'dia (h)', data:dayH, backgroundColor:'#A5B4FC', stack:'s' }
+        ]},
+        options:{ maintainAspectRatio:false, responsive:true,
+          plugins:{ legend:{ display:true, labels:{ boxWidth:12, font:{ size:10 } } }, valueLabels: vl },
+          scales:{ x:{ stacked:true, grid:{ color:grid } }, y:{ stacked:true, beginAtZero:true, grid:{ color:grid } } } } });
+      const hh = this.sa.hourly;
+      this._chart('chartSleepHours', { type:'bar', data:{
+          labels: hh.hours.map(h => String(h).padStart(2,'0') + 'h'),
+          datasets:[{ label:'despertares', data:hh.counts, backgroundColor:'#818CF8' }] },
+        options:{ maintainAspectRatio:false, responsive:true,
+          plugins:{ legend:{ display:false }, valueLabels:{ enabled:true, dark:isDark } },
+          scales:{ x:{ grid:{ color:grid } }, y:{ beginAtZero:true, ticks:{ precision:0 }, grid:{ color:grid } } } } });
+    },
+    // Texto pronto a enviar à consultora (WhatsApp/email) — partilha nativa ou área de transferência.
+    sleepReportText() {
+      if (!this.sa) return '';
+      const s = this.sa.summary, D = SleepAnalysis.fmtDur, C = SleepAnalysis.fmtClock, t = ms => this.fmtTime(ms);
+      const rows = this.sa.rows;
+      const d0 = this.dayLabel(rows[0].D), d1 = this.dayLabel(rows[rows.length-1].D);
+      const L = [];
+      L.push(`Sono do ${this.profile.name || 'bebé'} — ${d0} a ${d1}`);
+      L.push(`Médias: ${this._one(s.wakingsAvg)} despertares/noite · maior bloco ${D(s.longestAvg)} · deitar ${C(s.bedAvg)} · acordar ${C(s.wakeAvg)} · sono diurno ${D(s.daySleepAvg)} em ${this._one(s.napsAvg)} sonecas · janelas na meta ${s.windowsOkPct == null ? '—' : Math.round(s.windowsOkPct*100) + '%'}`);
+      L.push('');
+      for (const r of rows) {
+        if (!r.hasData) { L.push(`${this.dayLabel(r.D)} — sem registos`); continue; }
+        const p = [];
+        if (r.morningWake) p.push(`acordou ${t(r.morningWake)}`);
+        if (r.naps.length) p.push('sonecas ' + r.naps.map(n => `${t(n.s)}–${n.ongoing ? '…' : t(n.e)} (${D(n.min)})`).join(', '));
+        const N = r.night;
+        if (N) {
+          p.push(`deitou ${t(N.bed)}`);
+          if (N.wakings.length) p.push('despertares ' + N.wakings.map(k => `${t(k.at)} (${D(k.min)}${k.fed ? ', mamou' : ''})`).join(', '));
+          else if (N.complete) p.push('sem despertares');
+          if (!N.ongoing) p.push(`acordou ${t(N.wake)}${N.complete ? '' : ' (registo incompleto)'}`);
+        }
+        L.push(`${this.dayLabel(r.D)} — ${p.join(' · ')}`);
+      }
+      return L.join('\n');
+    },
+    async shareSleepReport() {
+      const text = this.sleepReportText();
+      if (!text) return;
+      try {
+        if (navigator.share) { await navigator.share({ text }); return; }
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+      try { await navigator.clipboard.writeText(text); this.showToast('📋 Resumo copiado'); }
+      catch (_) { this.showToast('Não foi possível copiar'); }
     },
     sleepDurationPreview() {
       if (!this.form.start || !this.form.end) return '—';
