@@ -440,6 +440,10 @@ tailwind.config = {
               </div>
             </template>
           </div>
+          <button class="btn-tap w-full mt-3 py-3 rounded-xl bg-mint-200 dark:bg-mint-500/40 font-medium text-sm"
+                  x-show="sleepDay" @click="shareConsultantDay()"
+                  x-text="sleepDay ? `📤 Enviar ${new Date(sleepDay.D).toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'})} no formato da consultora` : ''"></button>
+          <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 text-center">Usa ‹ › para escolher o dia. A noite é a que começa nesse dia.</div>
         </div>
 
         <!-- Gráficos -->
@@ -1273,7 +1277,7 @@ tailwind.config = {
             </div>
             <div>
               <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Notas</label>
-              <input class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.notes" placeholder="ex.: colo, chuchou, acordou a chorar...">
+              <input class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.notes" placeholder="acolhimento: voz, toque, colo do pai/mãe…">
             </div>
           </div>
         </template>
@@ -1502,7 +1506,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v23';
+    const CACHE = 'bernardo-v24';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1552,7 +1556,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v23';
+const APP_VERSION = 'v24';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1643,7 +1647,7 @@ const SleepAnalysis = (() => {
       let e = ongoing ? now : new Date(r.data.end).getTime();
       if (!isFinite(s) || !isFinite(e) || e <= s) continue;
       if (e - s > 16 * HOUR) e = s + 16 * HOUR; // registo esquecido aberto
-      raw.push({ s, e, ongoing, fed: r.data.fed_before || null }); // fed_before: 'peito' | 'mamadeira' | null
+      raw.push({ s, e, ongoing, fed: r.data.fed_before || null, notes: (r.data.notes || '').trim() }); // fed_before: 'peito' | 'mamadeira' | null
     }
     raw.sort((a, b) => a.s - b.s);
     const out = [];
@@ -1692,7 +1696,8 @@ const SleepAnalysis = (() => {
       // ou existe um registo de mamada nesse intervalo (±10 min).
       const flag = night[i].fed;
       const logged = feeds.some(f => f >= gs - 10 * MIN && f <= ge + 10 * MIN);
-      wakings.push({ at: gs, min: (ge - gs) / MIN, fed: !!flag || logged, fedKind: flag || (logged ? 'registo' : null) });
+      // notes = notas do sono seguinte (como voltou a adormecer → acolhimento)
+      wakings.push({ at: gs, min: (ge - gs) / MIN, fed: !!flag || logged, fedKind: flag || (logged ? 'registo' : null), notes: night[i].notes || '' });
       maxGap = Math.max(maxGap, ge - gs);
     }
     const sleepMin = night.reduce((s, x) => s + (x.e - x.s), 0) / MIN;
@@ -3570,15 +3575,51 @@ function app() {
       }
       return L.join('\n');
     },
-    async shareSleepReport() {
-      const text = this.sleepReportText();
+    async shareSleepReport() { await this.shareText(this.sleepReportText()); },
+    async shareText(text) {
       if (!text) return;
       try {
         if (navigator.share) { await navigator.share({ text }); return; }
       } catch (e) { if (e && e.name === 'AbortError') return; }
-      try { await navigator.clipboard.writeText(text); this.showToast('📋 Resumo copiado'); }
+      try { await navigator.clipboard.writeText(text); this.showToast('📋 Texto copiado'); }
       catch (_) { this.showToast('Não foi possível copiar'); }
     },
+    // Relatório de UM dia no modelo de mensagem que a consultora pediu no WhatsApp:
+    // dia (acordar + sonecas) e a noite que começa nesse dia (até acordar no dia seguinte).
+    // Respostas em *negrito* (formatação do WhatsApp), como no modelo.
+    consultantDayText(r) {
+      if (!r) return '';
+      const H = ms => { const d = new Date(ms); return String(d.getHours()).padStart(2,'0') + 'h' + String(d.getMinutes()).padStart(2,'0'); };
+      const dias = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+      const d = new Date(r.D);
+      const L = [];
+      L.push(`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} - ${dias[d.getDay()]}`);
+      L.push('');
+      L.push(`Iniciou o dia: as ${r.morningWake ? H(r.morningWake) : '—'}`);
+      r.naps.forEach((n, i) => {
+        L.push('');
+        L.push(`Soneca ${i+1} dormiu: ${H(n.s)}`);
+        L.push(`Soneca ${i+1} acordou: ${n.ongoing ? '—' : H(n.e)}`);
+      });
+      const N = r.night;
+      L.push('');
+      L.push(`Dormiu as ${N ? H(N.bed) : '—'}`);
+      L.push('');
+      L.push('Sono noturno:');
+      if (!N) {
+        L.push('Teve despertares? —');
+      } else {
+        const ws = N.wakings;
+        const fim = N.ongoing ? 'ainda a dormir' : `iniciou o dia às ${H(N.wake)}`;
+        L.push(`Teve despertares? *${ws.length ? 'SIM, ' + ws.length + 'x' : 'NÃO'}*`);
+        L.push(`Se sim que horas? *${[...ws.map(w => H(w.at)), fim].join(', ')}*`);
+        const fedTxt = w => w.fedKind === 'peito' ? 'mamou no peito' : w.fedKind === 'mamadeira' ? 'mamou na mamadeira' : w.fed ? 'mamou' : '';
+        const det = ws.map(w => `${H(w.at)}: ${SleepAnalysis.fmtDur(w.min)}` + [fedTxt(w), w.notes].filter(Boolean).map(x => ', ' + x).join(''));
+        L.push(`Quanto tempo durou? Como foram os acolhimentos? ${det.length ? det.join('; ') : '—'}`);
+      }
+      return L.join('\n');
+    },
+    async shareConsultantDay() { await this.shareText(this.consultantDayText(this.sleepDay)); },
     sleepDurationPreview() {
       if (!this.form.start || !this.form.end) return '—';
       const s = new Date(this.form.start), e = new Date(this.form.end);
