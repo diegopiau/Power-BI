@@ -144,6 +144,17 @@ tailwind.config = {
       </div>
     </template>
 
+    <!-- Nova versão disponível -->
+    <template x-if="newVersion">
+      <button class="w-full mb-4 p-3 rounded-2xl bg-mint-200 dark:bg-mint-500/30 border border-mint-300 dark:border-mint-500/50 flex items-center gap-3 btn-tap text-left"
+              @click="hardReload()">
+        <div class="text-2xl">✨</div>
+        <div class="flex-1 text-sm"><div class="font-semibold" x-text="`Nova versão disponível (${newVersion})`"></div>
+          <div class="text-xs text-slate-600 dark:text-slate-300">Toca para atualizar o app.</div></div>
+        <div class="text-xs px-3 py-1.5 rounded-full bg-white/70 dark:bg-white/10 font-medium">Atualizar</div>
+      </button>
+    </template>
+
     <!-- Sono em curso -->
     <template x-if="activeSleep">
       <button class="w-full mb-4 p-3 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-300/60 dark:border-indigo-400/40 flex items-center gap-3 btn-tap text-left"
@@ -1532,7 +1543,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v27';
+    const CACHE = 'bernardo-v28';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1547,7 +1558,9 @@ if ('serviceWorker' in navigator) {
       if (isHTML) {
         // Network-first para HTML — sempre que houver rede, buscar fresco
         e.respondWith(
-          fetch(req).then(res => {
+          // cache:'no-store' → ignora a cache HTTP do browser (o GitHub Pages
+          // envia max-age=600, o que segurava a versão antiga até 10 min)
+          fetch(req.url, { cache: 'no-store', credentials: 'same-origin' }).then(res => {
             const clone = res.clone();
             caches.open(CACHE).then(c => c.put(req, clone)).catch(()=>{});
             return res;
@@ -1582,7 +1595,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v27';
+const APP_VERSION = 'v28';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -2060,6 +2073,7 @@ function app() {
     sa: null,            // resultado de SleepAnalysis.build (cache — recalculado por watcher)
     sleepDayIdx: -1,     // dia selecionado no detalhe (índice em sa.rows; -1 = mais recente)
     sleepGoalsOpen: false,
+    newVersion: '', _lastUpdCheck: 0,
     _sleepT: null,
     chartRange: '14',
     rangeOptions: [
@@ -2190,6 +2204,9 @@ function app() {
       this.theme = localStorage.getItem('bernardo_theme') ||
         (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       document.documentElement.classList.toggle('dark', this.theme === 'dark');
+      if (/[?&]v=\d+/.test(location.search)) { try { history.replaceState(null, '', location.pathname); } catch(_){} }
+      setTimeout(() => this.checkUpdate(true), 3000);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') this.checkUpdate(); });
       this.calc = { weight: this.profile.birth_weight_g || 2715, mlPerKg: this.settings.supplement_formula_ml_per_kg, meals: this.settings.supplement_meals_divisor };
       this.$watch('records',  v => { localStorage.setItem('bernardo_records',  JSON.stringify(v)); this.pushRecordChanges(); });
       this.$watch('profile',  v => { localStorage.setItem('bernardo_profile',  JSON.stringify(v)); this.pushDoc('profile', v); });
@@ -3885,7 +3902,21 @@ function app() {
           await Promise.all(keys.map(k => caches.delete(k)));
         }
       } catch(e) { console.error('hardReload:', e); }
-      location.reload();
+      // Query única → o iPhone não pode reutilizar a cópia guardada da página
+      location.replace(location.pathname + '?v=' + Date.now());
+    },
+    // Verifica se o site já tem uma versão mais recente do que a que está a correr
+    // e, se sim, mostra o aviso "Nova versão disponível".
+    async checkUpdate(force) {
+      if (!force && Date.now() - (this._lastUpdCheck || 0) < 60000) return;
+      this._lastUpdCheck = Date.now();
+      try {
+        const res = await fetch(location.pathname + '?vcheck=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) return;
+        const m = (await res.text()).match(/const APP_VERSION = 'v(\d+)'/);
+        const cur = parseInt(String(APP_VERSION).replace(/\D/g, ''), 10);
+        if (m && parseInt(m[1], 10) > cur) this.newVersion = 'v' + m[1];
+      } catch (_) {}
     },
     scheduleChartsRender() {
       // Duplo rAF + fallback timeout: iOS Safari por vezes ainda não terminou
