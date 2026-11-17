@@ -1543,7 +1543,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v28';
+    const CACHE = 'bernardo-v29';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1595,7 +1595,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v28';
+const APP_VERSION = 'v29';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -3710,7 +3710,8 @@ function app() {
         L.push(`Teve despertares? *${ws.length ? 'SIM, ' + ws.length + 'x' : 'NÃO'}*`);
         L.push(`Se sim que horas? *${[...ws.map(w => H(w.at)), fim].join(', ')}*`);
         const fedTxt = w => w.fedKind === 'peito' ? 'mamou no peito' : w.fedKind === 'mamadeira' ? 'mamou na mamadeira' : w.fed ? 'mamou' : '';
-        const det = ws.map(w => `${H(w.at)}: ${SleepAnalysis.fmtDur(w.min)}` + [fedTxt(w), w.notes].filter(Boolean).map(x => ', ' + x).join(''));
+        // Cada despertar: hora em que acordou → hora em que voltou a dormir (duração)
+        const det = ws.map(w => `${H(w.at)} → voltou a dormir ${H(w.at + w.min * 60000)} (${SleepAnalysis.fmtDur(w.min)})` + [fedTxt(w), w.notes].filter(Boolean).map(x => ', ' + x).join(''));
         L.push(`Quanto tempo durou? Como foram os acolhimentos? ${det.length ? det.join('; ') : '—'}`);
       }
       return L.join('\n');
