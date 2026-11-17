@@ -12,6 +12,15 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23A8DADC'/><text x='50' y='66' font-size='50' text-anchor='middle'>👶</text></svg>">
 <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23A8DADC'/><text x='50' y='66' font-size='50' text-anchor='middle'>👶</text></svg>">
 <title>Diário do Bernardo</title>
+<script>
+// Tema escuro: a classe `dark` tem de estar no <html>. As variantes `dark:` do
+// Tailwind só se aplicam a DESCENDENTES de .dark, por isso com a classe só no
+// <body> o fundo da página (dark:bg-night-0 no próprio <body>) ficava claro.
+try {
+  const t = localStorage.getItem('bernardo_theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  if (t === 'dark') document.documentElement.classList.add('dark');
+} catch (_) {}
+</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = {
@@ -33,6 +42,7 @@ tailwind.config = {
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
+  html.dark, html.dark body { background-color: #1a2233; color-scheme: dark; }
   html,body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: contain; }
   body { font-size: 17px; padding-top: env(safe-area-inset-top); }
   .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 0.75rem); }
@@ -1522,7 +1532,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v26';
+    const CACHE = 'bernardo-v27';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1572,7 +1582,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v26';
+const APP_VERSION = 'v27';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -2179,6 +2189,7 @@ function app() {
       if (t) { const parsed = JSON.parse(t); if (parsed?.startedAt) this.timer = { running:true, startedAt: parsed.startedAt, elapsed: (Date.now()-parsed.startedAt)/1000 }; }
       this.theme = localStorage.getItem('bernardo_theme') ||
         (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.classList.toggle('dark', this.theme === 'dark');
       this.calc = { weight: this.profile.birth_weight_g || 2715, mlPerKg: this.settings.supplement_formula_ml_per_kg, meals: this.settings.supplement_meals_divisor };
       this.$watch('records',  v => { localStorage.setItem('bernardo_records',  JSON.stringify(v)); this.pushRecordChanges(); });
       this.$watch('profile',  v => { localStorage.setItem('bernardo_profile',  JSON.stringify(v)); this.pushDoc('profile', v); });
@@ -2199,6 +2210,7 @@ function app() {
     toggleTheme() {
       this.theme = this.theme==='dark' ? 'light' : 'dark';
       localStorage.setItem('bernardo_theme', this.theme);
+      document.documentElement.classList.toggle('dark', this.theme === 'dark');
       if (this.tab==='charts') this.scheduleChartsRender();
       if (this.tab==='sleep') this.scheduleSleep(true);
     },
