@@ -1270,6 +1270,13 @@ tailwind.config = {
               </div>
             </template>
             <div>
+              <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Onde dormiu?</label>
+              <div class="flex flex-wrap gap-2 mb-4">
+                <template x-for="o in SLEEP_PLACES" :key="'pl'+o.v">
+                  <button type="button" class="segbtn btn-tap px-3 py-2.5 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-sm font-medium"
+                          :data-active="form.place===o.v" @click="form.place = (form.place===o.v ? '' : o.v)" x-text="o.l"></button>
+                </template>
+              </div>
               <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Mamou para adormecer?</label>
               <div class="grid grid-cols-3 gap-2">
                 <template x-for="o in [{v:'',l:'Não'},{v:'peito',l:'🤱 Peito'},{v:'mamadeira',l:'🍼 Mamadeira'}]" :key="'fb'+o.v">
@@ -1515,7 +1522,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v25';
+    const CACHE = 'bernardo-v26';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1565,7 +1572,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v25';
+const APP_VERSION = 'v26';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1632,6 +1639,16 @@ const SLEEP_GOALS_DEFAULT = {
   shortNapMin: 45                   // soneca abaixo disto = curta
 };
 
+// Onde adormeceu (registo de sono → campo `place`). `txt` já inclui a preposição.
+const SLEEP_PLACES = [
+  { v:'berco',   l:'🛏️ Berço',          txt:'no berço' },
+  { v:'colo',    l:'🤗 Colo',           txt:'no colo' },
+  { v:'carro',   l:'🚗 Bebê conforto',  txt:'no bebê conforto no carro' },
+  { v:'carrinho',l:'🛒 Carrinho',       txt:'no carrinho' },
+  { v:'cama',    l:'🛌 Cama dos pais',  txt:'na cama dos pais' }
+];
+const sleepPlaceTxt = v => (SLEEP_PLACES.find(p => p.v === v) || {}).txt || '';
+
 const SleepAnalysis = (() => {
   const MIN = 60000, HOUR = 3600000, DAY = 86400000;
   const hm = s => { const [h, m] = String(s || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
@@ -1656,7 +1673,7 @@ const SleepAnalysis = (() => {
       let e = ongoing ? now : new Date(r.data.end).getTime();
       if (!isFinite(s) || !isFinite(e) || e <= s) continue;
       if (e - s > 16 * HOUR) e = s + 16 * HOUR; // registo esquecido aberto
-      raw.push({ s, e, ongoing, fed: r.data.fed_before || null, notes: (r.data.notes || '').trim(), endId: r.id, dayStart: !!r.data.day_start }); // fed_before: 'peito' | 'mamadeira' | null; day_start: ao acordar deste sono iniciou o dia
+      raw.push({ s, e, ongoing, fed: r.data.fed_before || null, notes: (r.data.notes || '').trim(), endId: r.id, dayStart: !!r.data.day_start, place: r.data.place || '' }); // fed_before: 'peito' | 'mamadeira' | null; day_start: ao acordar deste sono iniciou o dia
     }
     raw.sort((a, b) => a.s - b.s);
     const out = [];
@@ -1726,7 +1743,7 @@ const SleepAnalysis = (() => {
     const complete = !ongoing && !endsTooEarly && !endsSameEvening && maxGap <= 3 * HOUR;
     const nightFeeds = Math.max(feeds.filter(f => f >= bed && f <= wake).length, wakings.filter(w => w.fed).length);
     return {
-      bed, wake, ongoing, complete,
+      bed, wake, ongoing, complete, bedPlace: night[0].place || '',
       bedClock: clockMin(bed), wakeClock,
       sleepMin, inBedMin: (wake - bed) / MIN, awakeMin: (wake - bed) / MIN - sleepMin,
       longestMin: longest, wakings, nightFeeds,
@@ -1752,7 +1769,7 @@ const SleepAnalysis = (() => {
       const morningWake = prevNight && !prevNight.ongoing && prevNight.wake >= at(D, 3 * 60) && prevNight.wake < at(D, 13 * 60) ? prevNight.wake : null;
       const dayStartMarked = dayStartOf(segs, D).marked;
       const napList = naps.map(x => ({
-        s: x.s, e: x.e, min: (x.e - x.s) / MIN, ongoing: x.ongoing, endId: x.endId,
+        s: x.s, e: x.e, min: (x.e - x.s) / MIN, ongoing: x.ongoing, endId: x.endId, place: x.place || '',
         short: !x.ongoing && (x.e - x.s) / MIN < G.shortNapMin, late: x === lateBridge
       }));
       const windows = [];
@@ -1978,6 +1995,7 @@ const SleepAnalysis = (() => {
 function app() {
   return {
     APP_VERSION,
+    SLEEP_PLACES,
     theme: 'light',
     tab: 'today',
     tabs: [
@@ -2934,7 +2952,7 @@ function app() {
         case 'sleep': {
           if (!d.start) return '—';
           const s = new Date(d.start);
-          const fedTxt = (d.fed_before === 'peito' ? ' · mamou no peito' : d.fed_before === 'mamadeira' ? ' · mamou na mamadeira' : '') + (d.day_start ? ' · ☀️ iniciou o dia' : '');
+          const fedTxt = (d.fed_before === 'peito' ? ' · mamou no peito' : d.fed_before === 'mamadeira' ? ' · mamou na mamadeira' : '') + (d.place ? ' · ' + sleepPlaceTxt(d.place) : '') + (d.day_start ? ' · ☀️ iniciou o dia' : '');
           if (!d.end) return `A dormir desde ${this.fmtTime(d.start)}${fedTxt}${d.autogen?' (auto)':''}`;
           const e = new Date(d.end);
           const min = Math.max(0, Math.round((e-s)/60000));
@@ -2985,7 +3003,7 @@ function app() {
         case 'promil':  return { ...base, sachets:1 };
         case 'colic':   return { ...base, severity:3, duration_min:10, helped:[], notes:'' };
         case 'note':    return { ...base, text:'' };
-        case 'sleep':   return { ...base, start:'', end:'', fed_before:'', day_start:false, notes:'' };
+        case 'sleep':   return { ...base, start:'', end:'', place:'', fed_before:'', day_start:false, notes:'' };
         default:        return base;
       }
     },
@@ -3463,7 +3481,7 @@ function app() {
       for (const n of r.naps) {
         const w = byTo.get(n.s); if (w) items.push(winItem(w));
         items.push({ icon: n.late ? '🌇' : '😴', tone: (n.short || n.late) ? 'warn' : '',
-          text: `Soneca ${t(n.s)}–${n.ongoing ? '…' : t(n.e)} · ${D(n.min)}${n.short ? ' · curta' : ''}${n.late ? ' · ponte tardia' : ''}`,
+          text: `Soneca ${t(n.s)}–${n.ongoing ? '…' : t(n.e)} · ${D(n.min)}${n.place ? ' · ' + sleepPlaceTxt(n.place) : ''}${n.short ? ' · curta' : ''}${n.late ? ' · ponte tardia' : ''}`,
           // Só faz sentido para sonos da manhã: marca este sono como o último da noite
           action: (!r.dayStartMarked && !n.ongoing && new Date(n.e).getHours() < 13 && n.endId) ? { label:'☀️ iniciou o dia', kind:'mark', id:n.endId } : null });
       }
@@ -3472,7 +3490,7 @@ function app() {
         const w = byTo.get(N.bed); if (w) items.push(winItem(w));
         const rel = N.bedClock < 720 ? N.bedClock + 1440 : N.bedClock;
         const bedOk = rel >= hm(G.bedMin) - 15 && rel <= hm(G.bedMax);
-        items.push({ icon:'🛏️', tone: bedOk ? '' : 'warn', text:`Deitou ${t(N.bed)}${bedOk ? '' : ` · fora de ${G.bedMin}–${G.bedMax}`}` });
+        items.push({ icon:'🛏️', tone: bedOk ? '' : 'warn', text:`Deitou ${t(N.bed)}${N.bedPlace ? ' ' + sleepPlaceTxt(N.bedPlace) : ''}${bedOk ? '' : ` · fora de ${G.bedMin}–${G.bedMax}`}` });
         for (const k of N.wakings)
           items.push({ icon: k.fed ? '🤱' : '👀', tone:'', text:`Despertar ${t(k.at)} · ${D(k.min)} acordado${k.fed ? ' · mamou' + (k.fedKind === 'peito' ? ' no peito' : k.fedKind === 'mamadeira' ? ' na mamadeira' : '') : ''}` });
         if (N.ongoing) items.push({ icon:'🌙', tone:'', text:'Ainda a dormir…' });
@@ -3648,10 +3666,11 @@ function app() {
         L.push('');
         L.push(`Soneca ${i+1} dormiu: ${H(n.s)}`);
         L.push(`Soneca ${i+1} acordou: ${n.ongoing ? '—' : H(n.e)}`);
+        if (n.place) L.push(`Dormiu ${sleepPlaceTxt(n.place)}`);
       });
       const N = r.night;
       L.push('');
-      L.push(`Dormiu as ${N ? H(N.bed) : '—'}`);
+      L.push(`Dormiu as ${N ? H(N.bed) : '—'}${N && N.bedPlace ? ' ' + sleepPlaceTxt(N.bedPlace) : ''}`);
       L.push('');
       L.push('Sono noturno:');
       if (!N) {
