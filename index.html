@@ -437,6 +437,10 @@ tailwind.config = {
                          : it.tone==='ok' ? 'text-mint-500 dark:text-mint-200'
                          : it.tone==='muted' ? 'text-slate-400 dark:text-slate-500' : ''">
                 <span class="w-5 text-center" x-text="it.icon"></span><span class="flex-1" x-text="it.text"></span>
+                <template x-if="it.action">
+                  <button class="btn-tap shrink-0 -my-0.5 px-2 py-1 rounded-lg bg-amber-100 dark:bg-amber-400/20 text-amber-800 dark:text-amber-200 text-xs font-medium"
+                          @click="sleepItemAction(it.action)" x-text="it.action.label"></button>
+                </template>
               </div>
             </template>
           </div>
@@ -1275,6 +1279,11 @@ tailwind.config = {
               </div>
               <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">À noite, conta como despertar resolvido com mamada na análise do sono.</div>
             </div>
+            <label class="flex items-start gap-3 p-3 rounded-xl bg-amber-50 dark:bg-night-2 border border-amber-200 dark:border-night-2">
+              <input type="checkbox" class="w-5 h-5 mt-0.5" x-model="form.day_start">
+              <span class="text-sm"><b>☀️ Ao acordar deste sono, iniciou o dia</b>
+                <span class="block text-[11px] text-slate-500 dark:text-slate-400">Marca o último sono da noite. Ex.: acordou às 6h, voltou a dormir até às 8h → marca o sono que acabou às 8h. Nos relatórios o dia começa aí.</span></span>
+            </label>
             <div>
               <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Notas</label>
               <input class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.notes" placeholder="acolhimento: voz, toque, colo do pai/mãe…">
@@ -1506,7 +1515,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v24';
+    const CACHE = 'bernardo-v25';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1556,7 +1565,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v24';
+const APP_VERSION = 'v25';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1647,23 +1656,30 @@ const SleepAnalysis = (() => {
       let e = ongoing ? now : new Date(r.data.end).getTime();
       if (!isFinite(s) || !isFinite(e) || e <= s) continue;
       if (e - s > 16 * HOUR) e = s + 16 * HOUR; // registo esquecido aberto
-      raw.push({ s, e, ongoing, fed: r.data.fed_before || null, notes: (r.data.notes || '').trim() }); // fed_before: 'peito' | 'mamadeira' | null
+      raw.push({ s, e, ongoing, fed: r.data.fed_before || null, notes: (r.data.notes || '').trim(), endId: r.id, dayStart: !!r.data.day_start }); // fed_before: 'peito' | 'mamadeira' | null; day_start: ao acordar deste sono iniciou o dia
     }
     raw.sort((a, b) => a.s - b.s);
     const out = [];
     for (const g of raw) {
       const last = out[out.length - 1];
-      if (last && g.s <= last.e) { if (g.e > last.e) { last.e = g.e; last.ongoing = g.ongoing; } }
+      if (last && g.s <= last.e) { if (g.e > last.e) { last.e = g.e; last.ongoing = g.ongoing; last.endId = g.endId; } if (g.dayStart) last.dayStart = true; }
       else out.push({ ...g });
     }
     return { segs: out, autogen };
   }
 
   // Classifica os blocos de um dia D em sonecas (de D) e noite (de D → D+1).
+  // Início do dia D: por omissão 06:00; se um sono foi marcado "iniciou o dia"
+  // (acordar entre as 03h e as 13h de D), o dia começa quando ele acordou desse sono.
+  function dayStartOf(segs, D) {
+    const f = segs.find(x => x.dayStart && !x.ongoing && x.e >= at(D, 3 * 60) && x.e < at(D, 13 * 60));
+    return f ? { t: f.e, marked: true } : { t: at(D, 6 * 60), marked: false };
+  }
+
   function classifyDay(segs, D, G) {
     const nightCut = at(D, hm(G.bedMin) - 30);
-    const nightEnd = at(addDays(D, 1), 6 * 60);
-    const dayFrom = at(D, 6 * 60);
+    const nightEnd = dayStartOf(segs, addDays(D, 1)).t;
+    const dayFrom = dayStartOf(segs, D).t;
     let naps = segs.filter(x => x.s >= dayFrom && x.s < nightCut);
     let night = segs.filter(x => x.s >= nightCut && x.s < nightEnd);
     // Noite antecipada: bloco longo que começou antes do corte
@@ -1733,9 +1749,10 @@ const SleepAnalysis = (() => {
       const { naps, night, lateBridge } = classifyDay(segs, D, G);
       const N = nightStats(night, feeds, G, D);
       if (i === days) { prevNight = N; continue; }
-      const morningWake = prevNight && !prevNight.ongoing && prevNight.wake >= at(D, 4 * 60) && prevNight.wake < at(D, 11 * 60) ? prevNight.wake : null;
+      const morningWake = prevNight && !prevNight.ongoing && prevNight.wake >= at(D, 3 * 60) && prevNight.wake < at(D, 13 * 60) ? prevNight.wake : null;
+      const dayStartMarked = dayStartOf(segs, D).marked;
       const napList = naps.map(x => ({
-        s: x.s, e: x.e, min: (x.e - x.s) / MIN, ongoing: x.ongoing,
+        s: x.s, e: x.e, min: (x.e - x.s) / MIN, ongoing: x.ongoing, endId: x.endId,
         short: !x.ongoing && (x.e - x.s) / MIN < G.shortNapMin, late: x === lateBridge
       }));
       const windows = [];
@@ -1751,7 +1768,7 @@ const SleepAnalysis = (() => {
       const daySleep = napList.reduce((s, n) => s + n.min, 0);
       const lastNap = napList[napList.length - 1];
       rows.push({
-        D, morningWake, naps: napList, windows, night: N,
+        D, morningWake, dayStartMarked, naps: napList, windows, night: N,
         napCount: napList.length, daySleepMin: daySleep,
         lastNapEndClock: lastNap && !lastNap.ongoing ? clockMin(lastNap.e) : null,
         hasData: napList.length > 0 || !!N,
@@ -2917,7 +2934,7 @@ function app() {
         case 'sleep': {
           if (!d.start) return '—';
           const s = new Date(d.start);
-          const fedTxt = d.fed_before === 'peito' ? ' · mamou no peito' : d.fed_before === 'mamadeira' ? ' · mamou na mamadeira' : '';
+          const fedTxt = (d.fed_before === 'peito' ? ' · mamou no peito' : d.fed_before === 'mamadeira' ? ' · mamou na mamadeira' : '') + (d.day_start ? ' · ☀️ iniciou o dia' : '');
           if (!d.end) return `A dormir desde ${this.fmtTime(d.start)}${fedTxt}${d.autogen?' (auto)':''}`;
           const e = new Date(d.end);
           const min = Math.max(0, Math.round((e-s)/60000));
@@ -2968,7 +2985,7 @@ function app() {
         case 'promil':  return { ...base, sachets:1 };
         case 'colic':   return { ...base, severity:3, duration_min:10, helped:[], notes:'' };
         case 'note':    return { ...base, text:'' };
-        case 'sleep':   return { ...base, start:'', end:'', fed_before:'', notes:'' };
+        case 'sleep':   return { ...base, start:'', end:'', fed_before:'', day_start:false, notes:'' };
         default:        return base;
       }
     },
@@ -3439,12 +3456,16 @@ function app() {
       const winItem = w => ({ icon:'⏳', tone: w.rate==='ok' ? 'ok' : 'warn',
         text: `Janela ${D(w.min)}${w.rate==='long' ? ' · acima da meta' : w.rate==='short' ? ' · abaixo da meta' : ' ✓'}` });
       const byTo = new Map(r.windows.map(w => [w.to, w]));
-      if (r.morningWake) items.push({ icon:'☀️', tone:'', text:`Acordou ${t(r.morningWake)}` });
+      if (r.morningWake) items.push(r.dayStartMarked
+        ? { icon:'☀️', tone:'ok', text:`Iniciou o dia ${t(r.morningWake)} (marcado)`, action:{ label:'desmarcar', kind:'unmark', D:r.D } }
+        : { icon:'☀️', tone:'', text:`Acordou ${t(r.morningWake)}` });
       else items.push({ icon:'❔', tone:'muted', text:'Hora de acordar não registada (falta o fim da noite anterior)' });
       for (const n of r.naps) {
         const w = byTo.get(n.s); if (w) items.push(winItem(w));
         items.push({ icon: n.late ? '🌇' : '😴', tone: (n.short || n.late) ? 'warn' : '',
-          text: `Soneca ${t(n.s)}–${n.ongoing ? '…' : t(n.e)} · ${D(n.min)}${n.short ? ' · curta' : ''}${n.late ? ' · ponte tardia' : ''}` });
+          text: `Soneca ${t(n.s)}–${n.ongoing ? '…' : t(n.e)} · ${D(n.min)}${n.short ? ' · curta' : ''}${n.late ? ' · ponte tardia' : ''}`,
+          // Só faz sentido para sonos da manhã: marca este sono como o último da noite
+          action: (!r.dayStartMarked && !n.ongoing && new Date(n.e).getHours() < 13 && n.endId) ? { label:'☀️ iniciou o dia', kind:'mark', id:n.endId } : null });
       }
       const N = r.night;
       if (N) {
@@ -3459,6 +3480,33 @@ function app() {
           text: `Acordou ${t(N.wake)} · noite de ${D(N.inBedMin)} (${D(N.sleepMin)} a dormir)${N.complete ? '' : ' · noite incompleta, fora das médias'}` });
       } else items.push({ icon:'❔', tone:'muted', text:'Noite ainda sem registos' });
       return items;
+    },
+    sleepItemAction(a) {
+      if (!a) return;
+      if (a.kind === 'mark') this.markDayStart(a.id);
+      else if (a.kind === 'unmark') this.unmarkDayStart(a.D);
+    },
+    // Marca o sono `id` como "ao acordar, iniciou o dia". Só um por dia: desmarca
+    // outros sonos marcados cujo acordar caia na mesma manhã.
+    markDayStart(id) {
+      const rec = this.records.find(r => r.id === id);
+      if (!rec || !rec.data.end) return;
+      const day = new Date(rec.data.end); day.setHours(0,0,0,0);
+      this.records = this.records.map(r => {
+        if (r.type !== 'sleep') return r;
+        if (r.id === id) return { ...r, data: { ...r.data, day_start: true } };
+        if (r.data.day_start && r.data.end && new Date(new Date(r.data.end).setHours(0,0,0,0)).getTime() === day.getTime())
+          return { ...r, data: { ...r.data, day_start: false } };
+        return r;
+      });
+      this.showToast(`☀️ Dia iniciado às ${this.fmtTime(rec.data.end)}`);
+    },
+    unmarkDayStart(D) {
+      const from = D + 3*3600000, to = D + 13*3600000;
+      this.records = this.records.map(r => (r.type === 'sleep' && r.data.day_start && r.data.end &&
+        new Date(r.data.end).getTime() >= from && new Date(r.data.end).getTime() < to)
+        ? { ...r, data: { ...r.data, day_start: false } } : r);
+      this.showToast('Marcação removida');
     },
     get sleepDaySummary() {
       const r = this.sleepDay; if (!r) return '';
