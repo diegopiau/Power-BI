@@ -221,14 +221,32 @@ tailwind.config = {
       <div class="p-3 rounded-2xl bg-white dark:bg-night-1 border border-mint-200/60 dark:border-night-2 col-span-2">
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Sono hoje 😴</div>
-            <div class="mt-1 text-2xl font-semibold num-input" x-text="fmtDuration(todaySleepMinutes)"></div>
-            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 num-input">
-              <span x-text="sleepCountToday"></span> sono(s) · maior: <span x-text="fmtDuration(longestSleepToday)"></span>
-            </div>
+            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Sonecas hoje 😴</div>
+            <div class="mt-1 text-2xl font-semibold num-input" x-text="fmtDuration(Math.round(sleepTotals.napsMin))"></div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 num-input"
+                 x-text="sleepTotals.napCount ? `${sleepTotals.napCount} soneca${sleepTotals.napCount===1?'':'s'} · maior: ${fmtDuration(Math.round(sleepTotals.napLongest))}` : 'nenhuma soneca ainda'"></div>
           </div>
           <button class="btn-tap px-3 py-2 rounded-xl bg-indigo-100 dark:bg-indigo-500/30 text-indigo-800 dark:text-indigo-100 text-sm font-medium"
                   @click="openSheet('sleep')">＋ Sono</button>
+        </div>
+        <!-- Totais da noite: a de ontem (já terminada) e a de hoje, se já começou -->
+        <div class="mt-2 pt-2 border-t border-mint-200/60 dark:border-night-2 grid grid-cols-2 gap-2 text-xs num-input">
+          <div>
+            <div class="text-slate-500 dark:text-slate-400">🌙 Noite passada</div>
+            <div class="text-base font-semibold" x-text="sleepTotals.lastNight ? fmtDuration(Math.round(sleepTotals.lastNight.sleepMin)) + ' a dormir' : '—'"></div>
+            <div class="text-slate-500 dark:text-slate-400" x-show="sleepTotals.lastNight"
+                 x-text="sleepTotals.lastNight ? `${fmtTime(sleepTotals.lastNight.bed)} → ${sleepTotals.lastNight.ongoing ? 'a dormir' : fmtTime(sleepTotals.lastNight.wake)} · ${sleepTotals.lastNight.wakings.length} despertar${sleepTotals.lastNight.wakings.length===1?'':'es'}` : ''"></div>
+          </div>
+          <div x-show="sleepTotals.tonight">
+            <div class="text-slate-500 dark:text-slate-400">🌙 Esta noite</div>
+            <div class="text-base font-semibold" x-text="sleepTotals.tonight ? fmtDuration(Math.round(sleepTotals.tonight.sleepMin)) + (sleepTotals.tonight.ongoing ? ' até agora' : ' a dormir') : ''"></div>
+            <div class="text-slate-500 dark:text-slate-400"
+                 x-text="sleepTotals.tonight ? `desde ${fmtTime(sleepTotals.tonight.bed)} · ${sleepTotals.tonight.wakings.length} despertar${sleepTotals.tonight.wakings.length===1?'':'es'}` : ''"></div>
+          </div>
+          <div x-show="!sleepTotals.tonight">
+            <div class="text-slate-500 dark:text-slate-400">Total 24h (sonecas + noite passada)</div>
+            <div class="text-base font-semibold" x-text="fmtDuration(Math.round(sleepTotals.napsMin + (sleepTotals.lastNight ? sleepTotals.lastNight.sleepMin : 0)))"></div>
+          </div>
         </div>
         <template x-if="nextSleep">
           <div class="mt-2 pt-2 border-t border-mint-200/60 dark:border-night-2 text-xs num-input"
@@ -1543,7 +1561,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v29';
+    const CACHE = 'bernardo-v30';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1595,7 +1613,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v29';
+const APP_VERSION = 'v30';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -3555,9 +3573,26 @@ function app() {
         ? { ...r, data: { ...r.data, day_start: false } } : r);
       this.showToast('Marcação removida');
     },
+    // Totais para o ecrã Hoje: sonecas de hoje, noite passada e (se já começou) a desta noite.
+    // Usa a mesma classificação soneca/noite da aba Sono.
+    get sleepTotals() {
+      const empty = { napsMin:0, napCount:0, napLongest:0, lastNight:null, tonight:null };
+      try {
+        const a = SleepAnalysis.build(this.records, this.settings.sleep_goals, this._now, 2);
+        const [yday, today] = a.rows;
+        if (!today) return empty;
+        return {
+          napsMin: today.daySleepMin, napCount: today.napCount,
+          napLongest: today.naps.reduce((m, n) => Math.max(m, n.min), 0),
+          lastNight: yday ? yday.night : null,
+          tonight: today.night
+        };
+      } catch (_) { return empty; }
+    },
     get sleepDaySummary() {
       const r = this.sleepDay; if (!r) return '';
       const p = [`${r.napCount} soneca${r.napCount === 1 ? '' : 's'} · ${SleepAnalysis.fmtDur(r.daySleepMin)} de dia`];
+      if (r.night) p.push(`noite: ${SleepAnalysis.fmtDur(r.night.sleepMin)} a dormir${r.night.ongoing ? ' (até agora)' : ''}`);
       if (r.night && r.night.complete) p.push(`${r.night.wakings.length} despertar${r.night.wakings.length === 1 ? '' : 'es'} · maior bloco ${SleepAnalysis.fmtDur(r.night.longestMin)}`);
       return p.join(' · ');
     },
@@ -3713,6 +3748,14 @@ function app() {
         // Cada despertar: hora em que acordou → hora em que voltou a dormir (duração)
         const det = ws.map(w => `${H(w.at)} → voltou a dormir ${H(w.at + w.min * 60000)} (${SleepAnalysis.fmtDur(w.min)})` + [fedTxt(w), w.notes].filter(Boolean).map(x => ', ' + x).join(''));
         L.push(`Quanto tempo durou? Como foram os acolhimentos? ${det.length ? det.join('; ') : '—'}`);
+      }
+      // Totais (antes calculados à mão)
+      const D = SleepAnalysis.fmtDur;
+      L.push('');
+      L.push(`Total de sonecas: ${D(r.daySleepMin)} (${r.napCount} soneca${r.napCount === 1 ? '' : 's'})`);
+      if (N) {
+        const awake = N.wakings.reduce((t, w) => t + w.min, 0);
+        L.push(`Total sono noturno: ${D(N.sleepMin)}${N.ongoing ? ' até agora' : ''} (das ${H(N.bed)} às ${N.ongoing ? '—' : H(N.wake)}${awake ? `, ${D(awake)} acordado nos despertares` : ''})`);
       }
       return L.join('\n');
     },
