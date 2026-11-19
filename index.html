@@ -1561,7 +1561,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v30';
+    const CACHE = 'bernardo-v31';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1613,7 +1613,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v30';
+const APP_VERSION = 'v31';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1720,7 +1720,7 @@ const SleepAnalysis = (() => {
     const out = [];
     for (const g of raw) {
       const last = out[out.length - 1];
-      if (last && g.s <= last.e) { if (g.e > last.e) { last.e = g.e; last.ongoing = g.ongoing; last.endId = g.endId; } if (g.dayStart) last.dayStart = true; }
+      if (last && g.s <= last.e) { if (g.e > last.e) { last.e = g.e; last.ongoing = g.ongoing; last.endId = g.endId; } if (g.dayStart) last.dayStart = true; if (g.notes && !(last.notes || '').includes(g.notes)) last.notes = last.notes ? last.notes + '; ' + g.notes : g.notes; }
       else out.push({ ...g });
     }
     return { segs: out, autogen };
@@ -1810,7 +1810,7 @@ const SleepAnalysis = (() => {
       const morningWake = prevNight && !prevNight.ongoing && prevNight.wake >= at(D, 3 * 60) && prevNight.wake < at(D, 13 * 60) ? prevNight.wake : null;
       const dayStartMarked = dayStartOf(segs, D).marked;
       const napList = naps.map(x => ({
-        s: x.s, e: x.e, min: (x.e - x.s) / MIN, ongoing: x.ongoing, endId: x.endId, place: x.place || '',
+        s: x.s, e: x.e, min: (x.e - x.s) / MIN, ongoing: x.ongoing, endId: x.endId, place: x.place || '', notes: x.notes || '',
         short: !x.ongoing && (x.e - x.s) / MIN < G.shortNapMin, late: x === lateBridge
       }));
       const windows = [];
@@ -3731,6 +3731,7 @@ function app() {
         L.push(`Soneca ${i+1} dormiu: ${H(n.s)}`);
         L.push(`Soneca ${i+1} acordou: ${n.ongoing ? '—' : H(n.e)}`);
         if (n.place) L.push(`Dormiu ${sleepPlaceTxt(n.place)}`);
+        if (n.notes) L.push(`Notas: ${n.notes}`);
       });
       const N = r.night;
       L.push('');
