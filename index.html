@@ -1332,7 +1332,11 @@ tailwind.config = {
             </label>
             <div>
               <label class="block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Notas</label>
-              <input class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2" x-model="form.notes" placeholder="acolhimento: voz, toque, colo do pai/mãe…">
+              <!-- Caixa de várias linhas que cresce com o texto (notas médias/longas ficam visíveis) -->
+              <textarea rows="4" class="w-full p-3 rounded-xl bg-mint-50 dark:bg-night-2 border border-mint-200 dark:border-night-2 text-base leading-snug resize-y min-h-[6.5rem]"
+                        x-model="form.notes" placeholder="acolhimento: voz, toque, colo do pai/mãe…"
+                        x-init="$nextTick(() => { $el.style.height = 'auto'; $el.style.height = Math.max($el.scrollHeight, 104) + 'px'; })"
+                        @input="$el.style.height = 'auto'; $el.style.height = Math.max($el.scrollHeight, 104) + 'px'"></textarea>
             </div>
           </div>
         </template>
@@ -1561,7 +1565,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v31';
+    const CACHE = 'bernardo-v32';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1613,7 +1617,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v31';
+const APP_VERSION = 'v32';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
