@@ -1337,6 +1337,7 @@ tailwind.config = {
                         x-model="form.notes" placeholder="acolhimento: voz, toque, colo do pai/mãe…"
                         x-init="$nextTick(() => { $el.style.height = 'auto'; $el.style.height = Math.max($el.scrollHeight, 104) + 'px'; })"
                         @input="$el.style.height = 'auto'; $el.style.height = Math.max($el.scrollHeight, 104) + 'px'"></textarea>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">As notas descrevem como ele adormeceu neste sono. À noite: no 1.º sono vão para "Dormiu as…"; nos seguintes, para o despertar que veio antes (acolhimento).</div>
             </div>
           </div>
         </template>
@@ -1565,7 +1566,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v32';
+    const CACHE = 'bernardo-v33';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1617,7 +1618,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v32';
+const APP_VERSION = 'v33';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1788,7 +1789,7 @@ const SleepAnalysis = (() => {
     const complete = !ongoing && !endsTooEarly && !endsSameEvening && maxGap <= 3 * HOUR;
     const nightFeeds = Math.max(feeds.filter(f => f >= bed && f <= wake).length, wakings.filter(w => w.fed).length);
     return {
-      bed, wake, ongoing, complete, bedPlace: night[0].place || '',
+      bed, wake, ongoing, complete, bedPlace: night[0].place || '', bedNotes: night[0].notes || '',
       bedClock: clockMin(bed), wakeClock,
       sleepMin, inBedMin: (wake - bed) / MIN, awakeMin: (wake - bed) / MIN - sleepMin,
       longestMin: longest, wakings, nightFeeds,
@@ -3532,7 +3533,7 @@ function app() {
       for (const n of r.naps) {
         const w = byTo.get(n.s); if (w) items.push(winItem(w));
         items.push({ icon: n.late ? '🌇' : '😴', tone: (n.short || n.late) ? 'warn' : '',
-          text: `Soneca ${t(n.s)}–${n.ongoing ? '…' : t(n.e)} · ${D(n.min)}${n.place ? ' · ' + sleepPlaceTxt(n.place) : ''}${n.short ? ' · curta' : ''}${n.late ? ' · ponte tardia' : ''}`,
+          text: `Soneca ${t(n.s)}–${n.ongoing ? '…' : t(n.e)} · ${D(n.min)}${n.place ? ' · ' + sleepPlaceTxt(n.place) : ''}${n.short ? ' · curta' : ''}${n.late ? ' · ponte tardia' : ''}${n.notes ? ' · 📝 ' + n.notes : ''}`,
           // Só faz sentido para sonos da manhã: marca este sono como o último da noite
           action: (!r.dayStartMarked && !n.ongoing && new Date(n.e).getHours() < 13 && n.endId) ? { label:'☀️ iniciou o dia', kind:'mark', id:n.endId } : null });
       }
@@ -3541,9 +3542,9 @@ function app() {
         const w = byTo.get(N.bed); if (w) items.push(winItem(w));
         const rel = N.bedClock < 720 ? N.bedClock + 1440 : N.bedClock;
         const bedOk = rel >= hm(G.bedMin) - 15 && rel <= hm(G.bedMax);
-        items.push({ icon:'🛏️', tone: bedOk ? '' : 'warn', text:`Deitou ${t(N.bed)}${N.bedPlace ? ' ' + sleepPlaceTxt(N.bedPlace) : ''}${bedOk ? '' : ` · fora de ${G.bedMin}–${G.bedMax}`}` });
+        items.push({ icon:'🛏️', tone: bedOk ? '' : 'warn', text:`Deitou ${t(N.bed)}${N.bedPlace ? ' ' + sleepPlaceTxt(N.bedPlace) : ''}${bedOk ? '' : ` · fora de ${G.bedMin}–${G.bedMax}`}${N.bedNotes ? ' · 📝 ' + N.bedNotes : ''}` });
         for (const k of N.wakings)
-          items.push({ icon: k.fed ? '🤱' : '👀', tone:'', text:`Despertar ${t(k.at)} · ${D(k.min)} acordado${k.fed ? ' · mamou' + (k.fedKind === 'peito' ? ' no peito' : k.fedKind === 'mamadeira' ? ' na mamadeira' : '') : ''}` });
+          items.push({ icon: k.fed ? '🤱' : '👀', tone:'', text:`Despertar ${t(k.at)} · ${D(k.min)} acordado${k.fed ? ' · mamou' + (k.fedKind === 'peito' ? ' no peito' : k.fedKind === 'mamadeira' ? ' na mamadeira' : '') : ''}${k.notes ? ' · 📝 ' + k.notes : ''}` });
         if (N.ongoing) items.push({ icon:'🌙', tone:'', text:'Ainda a dormir…' });
         else items.push({ icon:'🌅', tone: N.complete ? '' : 'muted',
           text: `Acordou ${t(N.wake)} · noite de ${D(N.inBedMin)} (${D(N.sleepMin)} a dormir)${N.complete ? '' : ' · noite incompleta, fora das médias'}` });
@@ -3740,6 +3741,7 @@ function app() {
       const N = r.night;
       L.push('');
       L.push(`Dormiu as ${N ? H(N.bed) : '—'}${N && N.bedPlace ? ' ' + sleepPlaceTxt(N.bedPlace) : ''}`);
+      if (N && N.bedNotes) L.push(`Notas: ${N.bedNotes}`);
       L.push('');
       L.push('Sono noturno:');
       if (!N) {
@@ -3751,8 +3753,12 @@ function app() {
         L.push(`Se sim que horas? *${[...ws.map(w => H(w.at)), fim].join(', ')}*`);
         const fedTxt = w => w.fedKind === 'peito' ? 'mamou no peito' : w.fedKind === 'mamadeira' ? 'mamou na mamadeira' : w.fed ? 'mamou' : '';
         // Cada despertar: hora em que acordou → hora em que voltou a dormir (duração)
-        const det = ws.map(w => `${H(w.at)} → voltou a dormir ${H(w.at + w.min * 60000)} (${SleepAnalysis.fmtDur(w.min)})` + [fedTxt(w), w.notes].filter(Boolean).map(x => ', ' + x).join(''));
-        L.push(`Quanto tempo durou? Como foram os acolhimentos? ${det.length ? det.join('; ') : '—'}`);
+        L.push(`Quanto tempo durou? Como foram os acolhimentos?${ws.length ? '' : ' —'}`);
+        // Um despertar por linha; as notas (do sono a seguir = como voltou a dormir) logo abaixo
+        for (const w of ws) {
+          L.push(`• ${H(w.at)} → voltou a dormir ${H(w.at + w.min * 60000)} (${SleepAnalysis.fmtDur(w.min)})${fedTxt(w) ? ', ' + fedTxt(w) : ''}`);
+          if (w.notes) L.push(`   Notas: ${w.notes}`);
+        }
       }
       // Totais (antes calculados à mão)
       const D = SleepAnalysis.fmtDur;
