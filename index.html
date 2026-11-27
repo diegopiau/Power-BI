@@ -155,6 +155,16 @@ tailwind.config = {
       </button>
     </template>
 
+    <!-- Sonos que ficaram sem hora de fim -->
+    <template x-for="r in staleOpenSleeps" :key="'stale'+r.id">
+      <button class="w-full mb-3 p-3 rounded-2xl bg-amber-100 dark:bg-amber-400/15 border border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-200 flex items-center gap-3 btn-tap text-left"
+              @click="editRecord(r)">
+        <div class="text-2xl">⚠️</div>
+        <div class="flex-1 text-sm"><div class="font-semibold">Sono sem hora de fim</div>
+          <div class="text-xs" x-text="`Começou ${fmtDate(r.data.start)} às ${fmtTime(r.data.start)} e não tem 'Acordou'. Toca para pôr a hora em que acordou.`"></div></div>
+      </button>
+    </template>
+
     <!-- Sono em curso -->
     <template x-if="activeSleep">
       <button class="w-full mb-4 p-3 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-300/60 dark:border-indigo-400/40 flex items-center gap-3 btn-tap text-left"
@@ -1276,6 +1286,7 @@ tailwind.config = {
                   <div>App: <b x-text="APP_VERSION"></b> · registos: <b x-text="records.length"></b> · apagados: <b x-text="_tombstones.size"></b></div>
                   <div>Última sincronização: <b x-text="lastSyncText"></b> · tempo real: <b x-text="sync.channel === 'SUBSCRIBED' ? 'ligado' : (sync.channel || '—')"></b></div>
                   <div>Linhas lidas da cloud: <b x-text="sync.cloudRows || '—'"></b></div>
+                  <div>Por enviar: <b x-text="_pending.size"></b> <span class="text-slate-500" x-show="_pending.size">(o app volta a tentar sozinho)</span></div>
                   <template x-if="sync.error"><div class="text-rose-400 dark:text-rose-300">último erro: <span x-text="sync.error"></span></div></template>
                 </div>
                 <button class="btn-tap w-full py-3 rounded-xl bg-mint-300 dark:bg-mint-500 text-slate-900 dark:text-slate-950 font-semibold" @click="ensureRealtime(); refreshNow(true)">🔄 Sincronizar agora</button>
@@ -1566,7 +1577,7 @@ tailwind.config = {
 <script>
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'bernardo-v33';
+    const CACHE = 'bernardo-v34';
     self.addEventListener('install', e => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil((async () => {
       // Limpar caches antigos ao ativar nova versão
@@ -1618,7 +1629,7 @@ function uuid() {
     });
 }
 
-const APP_VERSION = 'v33';
+const APP_VERSION = 'v34';
 
 // Config Supabase (sync opcional). A chave publicável é segura para o browser;
 // a proteção vem do login + RLS. A tabela guarda só os dados deste projeto.
@@ -1722,6 +1733,13 @@ const SleepAnalysis = (() => {
       raw.push({ s, e, ongoing, fed: r.data.fed_before || null, notes: (r.data.notes || '').trim(), endId: r.id, dayStart: !!r.data.day_start, place: r.data.place || '' }); // fed_before: 'peito' | 'mamadeira' | null; day_start: ao acordar deste sono iniciou o dia
     }
     raw.sort((a, b) => a.s - b.s);
+    // Sono que ficou aberto (sem "Acordou") mas já há outro sono registado depois:
+    // não pode estar a decorrer, e a hora real de acordar é desconhecida. Sem isto
+    // ele "engolia" todos os sonos seguintes (fundidos num só bloco até agora).
+    // Fica de fora das contas até ser corrigido (o ecrã Hoje mostra um aviso).
+    for (let i = raw.length - 2; i >= 0; i--) {
+      if (raw[i].ongoing) raw.splice(i, 1);
+    }
     const out = [];
     for (const g of raw) {
       const last = out[out.length - 1];
@@ -2088,7 +2106,7 @@ function app() {
     // ===== Sincronização (Supabase) =====
     sync: { status:'off', user:null, email:'', password:'', error:'', busy:false, test:'', channel:'', lastSync:0, cloudRows:0, lastFull:0 },
     _startingSync: false, _refreshing: false, _pollT: null,
-    _sb: null, _uid: null, _syncReady: false, _recShadow: {}, _docShadow: {}, _ch: null, _tombstones: new Set(),
+    _sb: null, _uid: null, _syncReady: false, _recShadow: {}, _docShadow: {}, _ch: null, _tombstones: new Set(), _pending: new Set(), _retryT: null,
     form: {},
     calc: { weight: 2715, mlPerKg: 150, meals: 8 },
     // ===== Análise de sono (aba Sono) =====
@@ -2218,6 +2236,8 @@ function app() {
       if (r) this.records = JSON.parse(r);
       // Lista persistente de registos apagados (impede ressurreição após reabrir/sync)
       try { const tb = localStorage.getItem('bernardo_tombstones'); this._tombstones = new Set(tb ? JSON.parse(tb) : []); } catch(_) { this._tombstones = new Set(); }
+      // Registos alterados neste telemóvel cujo envio a cloud ainda não confirmou
+      try { const pd = localStorage.getItem('bernardo_pending'); this._pending = new Set(pd ? JSON.parse(pd) : []); } catch(_) { this._pending = new Set(); }
       if (this._tombstones.size) this.records = this.records.filter(x => !this._tombstones.has(x.id));
       const md = localStorage.getItem('bernardo_meds');
       if (md) this.meds = JSON.parse(md);
@@ -2401,6 +2421,7 @@ function app() {
       for (const id in localById) {
         if (this._tombstones.has(id)) continue;           // já apagado — não ressuscitar
         if (!(id in merged)) { merged[id] = localById[id]; toPush.push(localById[id]); }
+        else if (this._pending.has(id)) { merged[id] = localById[id]; toPush.push(localById[id]); } // por confirmar → local ganha
       }
       this.records = Object.values(merged).sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       // Docs: se existe na cloud adota; senão fica por enviar
@@ -2415,7 +2436,18 @@ function app() {
       this._docShadow = { profile: JSON.stringify(this.profile), settings: JSON.stringify(this.settings), meds: JSON.stringify(this.meds) };
       this._syncReady = true;
       // Enviar o que só existe localmente
-      if (toPush.length) await this._sb.from('bernardo_sync').upsert(toPush.map(r => this.recRow(r)), { onConflict:'user_id,id' });
+      if (toPush.length) {
+        for (const r of toPush) this._pending.add(r.id);
+        const { error } = await this._sb.from('bernardo_sync').upsert(toPush.map(r => this.recRow(r)), { onConflict:'user_id,id' });
+        if (error) {
+          this.sync.error = 'escrita: ' + error.message;
+          for (const r of toPush) delete this._recShadow[r.id];   // reenviar no próximo push
+          this._scheduleRetry();
+        } else {
+          for (const r of toPush) { const cur = this.records.find(q => q.id === r.id); if (!cur || JSON.stringify(cur) === JSON.stringify(r)) this._pending.delete(r.id); }
+        }
+        this._savePending();
+      }
       for (const key of missingDocs) await this._sb.from('bernardo_sync').upsert(this.docRow(key), { onConflict:'user_id,id' });
       // Re-tombar na cloud o que apagámos mas ainda está vivo lá (ex.: reenviado por um telemóvel antigo)
       const reTomb = [...this._tombstones].filter(id => cloudAlive.has(id));
@@ -2456,6 +2488,9 @@ function app() {
         return;
       }
       const rec = row.payload;
+      // Alteração local ainda por confirmar na cloud → a versão local ganha
+      // (evita que o eco/atualização trazido da cloud apague um "Acordou" recente)
+      if (this._pending.has(rec.id) && this.records.some(r => r.id === rec.id)) return;
       // Se já apagámos este id, ignorar o re-add e re-tombar na cloud (telemóvel antigo)
       if (this._tombstones.has(rec.id)) {
         this._recShadow[rec.id] = DELMARK;
@@ -2477,6 +2512,11 @@ function app() {
     recRow(r) { return { id:r.id, user_id:this._uid, kind:'record', payload:r, updated_at:new Date().toISOString(), deleted:false }; },
     tombRow(id) { return { id, user_id:this._uid, kind:'record', payload:{ id }, updated_at:new Date().toISOString(), deleted:true }; },
     docRow(key) { return { id:key, user_id:this._uid, kind:'doc', payload:(key==='meds'?this.meds:this[key]), updated_at:new Date().toISOString(), deleted:false }; },
+    _savePending() { try { localStorage.setItem('bernardo_pending', JSON.stringify([...this._pending])); } catch(_){} },
+    _scheduleRetry() {
+      clearTimeout(this._retryT);
+      this._retryT = setTimeout(() => this.pushRecordChanges(), 15000);
+    },
     _saveTombstones() { try { localStorage.setItem('bernardo_tombstones', JSON.stringify([...this._tombstones])); } catch(_){} },
     addTombstones(ids) { for (const id of ids) this._tombstones.add(id); this._saveTombstones(); },
     removeTombstones(ids) { for (const id of ids) this._tombstones.delete(id); this._saveTombstones(); },
@@ -2489,7 +2529,24 @@ function app() {
       // ids que tínhamos (conteúdo real no shadow) e já não estão → tombstone
       for (const id in this._recShadow) if (this._recShadow[id] !== DELMARK && !(id in cur)) toTomb.push(id);
       if (toTomb.length) this.addTombstones(toTomb);
-      if (toUpsert.length) this._sb.from('bernardo_sync').upsert(toUpsert.map(r => this.recRow(r)), { onConflict:'user_id,id' }).then(({error})=>{ if(error) this.sync.error = 'escrita: '+error.message; }, (e)=>{ this.sync.error = 'escrita: '+(e?.message||e); });
+      // Envio com confirmação: o id fica "pendente" até a cloud responder OK.
+      // Se falhar, o shadow desses ids é limpo para o próximo push os reenviar.
+      if (toUpsert.length) {
+        const sent = toUpsert.map(r => ({ id: r.id, json: cur[r.id] }));
+        for (const x of sent) this._pending.add(x.id);
+        this._savePending();
+        const fail = (msg) => {
+          this.sync.error = 'escrita: ' + msg;
+          for (const x of sent) if (this._recShadow[x.id] === x.json) delete this._recShadow[x.id];
+          this._scheduleRetry();
+        };
+        this._sb.from('bernardo_sync').upsert(toUpsert.map(r => this.recRow(r)), { onConflict:'user_id,id' }).then(({error}) => {
+          if (error) return fail(error.message);
+          // Só sai de pendente se não houve nova alteração local entretanto
+          for (const x of sent) { const r = this.records.find(q => q.id === x.id); if (!r || JSON.stringify(r) === x.json) this._pending.delete(x.id); }
+          this._savePending();
+        }, (e) => fail(e?.message || e));
+      }
       if (toTomb.length) this._sb.from('bernardo_sync').upsert(toTomb.map(id => this.tombRow(id)), { onConflict:'user_id,id' }).then(({error})=>{ if(error) this.sync.error = 'apagar: '+error.message; }, (e)=>{ this.sync.error = 'apagar: '+(e?.message||e); });
       // atualizar shadow: conteúdo atual + manter tombstones
       const next = { ...cur };
@@ -2729,9 +2786,17 @@ function app() {
     },
     // ===== SONO =====
     get activeSleep() {
-      // Sono em curso = registo com start mas sem end
-      return this.records.filter(r => r.type==='sleep' && r.data.start && !r.data.end)
-        .sort((a,b) => new Date(b.data.start) - new Date(a.data.start))[0];
+      // Sono em curso = o sono MAIS RECENTE, se não tiver fim. Um sono aberto
+      // com outro sono registado depois é um "Acordou" esquecido (ver staleOpenSleeps).
+      const sl = this.records.filter(r => r.type==='sleep' && r.data.start && !r.data.autogen)
+        .sort((a,b) => new Date(b.data.start) - new Date(a.data.start));
+      return sl[0] && !sl[0].data.end ? sl[0] : undefined;
+    },
+    // Sonos sem hora de fim que já têm outro sono registado depois → precisam de correção
+    get staleOpenSleeps() {
+      const sl = this.records.filter(r => r.type==='sleep' && r.data.start && !r.data.autogen)
+        .sort((a,b) => new Date(a.data.start) - new Date(b.data.start));
+      return sl.filter((r, i) => !r.data.end && i < sl.length - 1);
     },
     // Minutos de sono que caem dentro deste dia (overlap simples com o dia)
     sleepMinutesOn(dayStartMs) {
